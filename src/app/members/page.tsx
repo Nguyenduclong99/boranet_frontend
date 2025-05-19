@@ -100,18 +100,20 @@ const EmployeesPage = () => {
   const [resetPasswordValue, setResetPasswordValue] = useState("");
 
   useEffect(() => {
-    setIsClient(true);
-    const token = localStorage.getItem("accessToken") || "";
-    setCurrentUserToken(token);
-  }, []);
+    if (isTokenExpired()) {
+            Cookies.remove("accessToken");
+            Cookies.remove("accessTokenExpiresAt");
+            router.push("/login");
+        }
+    }, [router]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const accessToken = localStorage.getItem("accessToken");
+        const token = Cookies.get("accessToken");
         const response = await fetch(`${API_BASE_URL}/api/users/getList`, {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${token}`,
           },
         });
 

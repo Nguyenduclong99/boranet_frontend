@@ -21,14 +21,15 @@ export async function middleware(request: NextRequest) {
 
         if (pathname.startsWith('/members')) {
             try {
-                const decodedToken: any = jwtDecode(accessToken); 
-                const roles: string[] = decodedToken.roles || []; 
+                const decodedToken: any = jwtDecode(accessToken);
+                const roles: string[] = decodedToken.roles || []; // Lấy danh sách roles từ token
                 if (!roles.includes('ROLE_ADMIN')) {
+                    debugger
                     return NextResponse.redirect(new URL('/', request.url));
                 }
             } catch (error) {
                 console.error('Error decoding token or checking roles:', error);
-                return NextResponse.redirect(new URL('/login', request.url)); 
+                return NextResponse.redirect(new URL('/login', request.url));
             }
         }
     }
