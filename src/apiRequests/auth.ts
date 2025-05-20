@@ -3,8 +3,7 @@ import {
   LoginBodyType,
   LoginResType,
   RegisterBodyType,
-  RegisterResType,
-  SlideSessionResType
+  RegisterResType
 } from '@/schemaValidations/auth.schema'
 import { MessageResType } from '@/schemaValidations/common.schema'
 
