@@ -320,12 +320,13 @@ const WorkOrderDashboard = () => {
           </Grid>
           <Grid item>
             <DatePicker
-              showIcon
-              selected={toDate}
-              onChange={(date: Date | null) => setToDate(date)}
-              dateFormat="dd/MM/yyyy"
-              placeholderText="To Date"
-              size="small"
+              label="To Date"
+              value={toDate}
+              onChange={(newValue) => setToDate(newValue)}
+              slotProps={{
+                textField: (params) => <TextField {...params} size="small" />,
+              }}
+              format="DD/MM/YYYY" // Định dạng hiển thị
             />
           </Grid>
           <Grid item>

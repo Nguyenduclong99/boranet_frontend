@@ -5,10 +5,10 @@ import {
 } from '@/schemaValidations/account.schema'
 
 const accountApiRequest = {
-  me: (sessionToken: string) =>
+  me: (accessToken: string) =>
     http.get<AccountResType>('account/me', {
       headers: {
-        Authorization: `Bearer ${sessionToken}`
+        Authorization: `Bearer ${accessToken}`
       }
     }),
   meClient: () => http.get<AccountResType>('account/me'),

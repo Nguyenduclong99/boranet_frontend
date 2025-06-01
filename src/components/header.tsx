@@ -1,112 +1,245 @@
 "use client";
+
 import { useAppContext } from "@/app/app-provider";
 import ButtonLogout from "@/components/button-logout";
-import { ModeToggle } from "@/components/mode-toggle";
-import { Layout, Menu, Avatar, Dropdown, Space, Typography, Button, theme } from "antd";
-import { ItemType } from 'antd/es/menu/interface';
-import Link from "next/link";
-import { UserOutlined, LoginOutlined, UserAddOutlined, DashboardOutlined } from "@ant-design/icons";
-import { useEffect, useState } from "react";
+import AppBar from "@mui/material/AppBar";
+import Toolbar from "@mui/material/Toolbar";
+import Typography from "@mui/material/Typography";
+import IconButton from "@mui/material/IconButton";
+import Box from "@mui/material/Box";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import Avatar from "@mui/material/Avatar";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
 
-const { Header: AntHeader } = Layout;
-const { Text } = Typography;
+import AccountCircle from "@mui/icons-material/AccountCircle";
+import Login from "@mui/icons-material/Login";
+import PersonAdd from "@mui/icons-material/PersonAdd";
+import Dashboard from "@mui/icons-material/Dashboard";
+import MenuIcon from "@mui/icons-material/Menu";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import Cookies from "js-cookie";
+import { jwtDecode } from "jwt-decode";
+
+interface JwtPayload {
+    roles: string[];
+    sub: string;
+}
 
 export default function Header() {
-    const { user, roles } = useAppContext();
-    const {
-        token: { colorBgContainer },
-    } = theme.useToken();
-    const [menuItems, setMenuItems] = useState<ItemType[]>([]);
+    const { user: contextUser } = useAppContext();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
+    const [anchorElMain, setAnchorElMain] = useState<null | HTMLElement>(null); 
+    const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
+
+    const [mainMenuItems, setMainMenuItems] = useState<
+        Array<{ key: string; icon: React.ReactNode; label: React.ReactNode; href?: string }>
+    >([]);
+    const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
     useEffect(() => {
-      console.log("Header: user =", user);
-      console.log("Header: roles =", roles);
-        if (user) {
-            const baseMenuItems: ItemType[] = [
-                {
-                    key: "order-list",
-                    icon: <DashboardOutlined />,
-                    label: <Link href="/jobs/order-list">Quản lý công việc</Link>,
+        const accessToken = Cookies.get("accessToken");
+        if (accessToken) {
+            try {
+                const decodedToken = jwtDecode<JwtPayload>(accessToken);
+                if (decodedToken && decodedToken.roles) {
+                    setCurrentUserRoles(decodedToken.roles);
+                    setIsAuthenticated(true);
+                } else {
+                    setCurrentUserRoles([]);
+                    setIsAuthenticated(false);
                 }
-            ];
+            } catch (error) {
+                console.error("Failed to decode token:", error);
+                setCurrentUserRoles([]);
+                setIsAuthenticated(false);
+                Cookies.remove("accessToken");
+            }
+        } else {
+            setCurrentUserRoles([]);
+            setIsAuthenticated(false);
+        }
+    }, []);
 
-            if (roles && roles.includes("ROLE_ADMIN")) {
+    useEffect(() => {
+        const baseMenuItems: Array<{ key: string; icon: React.ReactNode; label: React.ReactNode; href?: string }> = [];
+
+        // Chỉ thêm các mục menu quản lý nếu người dùng đã đăng nhập
+        if (isAuthenticated) {
+            baseMenuItems.push({
+                key: "order-list",
+                icon: <Dashboard />,
+                label: "Job management",
+                href: "/jobs/order-list",
+            });
+
+            if (currentUserRoles.includes("ROLE_ADMIN")) {
                 baseMenuItems.unshift({
                     key: "members",
-                    icon: <DashboardOutlined />,
-                    label: <Link href="/members">Quản lý member</Link>,
+                    icon: <Dashboard />,
+                    label: "Member management",
+                    href: "/members",
                 });
             }
+        }
 
-            setMenuItems(baseMenuItems);
-        } else {
-            setMenuItems([
+        if (!isAuthenticated) {
+            baseMenuItems.push(
                 {
                     key: "login",
-                    icon: <LoginOutlined />,
-                    label: <Link href="/login">Đăng nhập</Link>,
+                    icon: <Login />,
+                    label: "Login",
+                    href: "/login",
                 },
                 {
                     key: "register",
-                    icon: <UserAddOutlined />,
-                    label: <Link href="/register">Đăng ký</Link>,
-                },
-            ]);
+                    icon: <PersonAdd />,
+                    label: "Register",
+                    href: "/register",
+                }
+            );
         }
-    }, [user, roles]);
 
-    const userDropdownMenuItems: ItemType[] = [
+        setMainMenuItems(baseMenuItems);
+    }, [currentUserRoles, isAuthenticated]);
+
+    const handleOpenMainMenu = (event: React.MouseEvent<HTMLElement>) => {
+        setAnchorElMain(event.currentTarget);
+    };
+    const handleCloseMainMenu = () => {
+        setAnchorElMain(null);
+    };
+
+    const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => {
+        setAnchorElUser(event.currentTarget);
+    };
+    const handleCloseUserMenu = () => {
+        setAnchorElUser(null);
+    };
+
+    const userDropdownMenuItems: Array<{ key: string; label: React.ReactNode; href?: string }> = [
         {
-            key: "1",
-            label: <Link href="/settings">Cài đặt</Link>,
-        },
-        {
-            type: "divider",
-        },
-        {
-            key: "3",
+            key: "logout",
             label: <ButtonLogout />,
         },
     ];
 
     return (
-        <AntHeader
-            style={{
-                background: colorBgContainer,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "0 24px",
-                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-            }}
-        >
-            <div className="demo-logo" style={{ fontWeight: "bold", fontSize: "1.2rem" }}>
-                <Link href="/">Boranet</Link>
-            </div>
+        <AppBar position="static" sx={{ boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)", bgcolor: "white" }}>
+            <Toolbar sx={{ justifyContent: "space-between", paddingX: { xs: 2, sm: 3 } }}>
+                <Typography
+                    variant="h6"
+                    noWrap
+                    component={Link}
+                    href="/"
+                    sx={{
+                        mr: 2,
+                        display: "flex",
+                        fontWeight: 700,
+                        letterSpacing: ".1rem",
+                        color: "black",
+                        textDecoration: "none",
+                    }}
+                >
+                    BORANET
+                </Typography>
 
-            <Space size="large">
-                <Menu
-                    theme="light"
-                    mode="horizontal"
-                    items={menuItems}
-                    style={{ flex: 1, minWidth: 0, borderBottom: "none" }}
-                />
+                <Box sx={{ flexGrow: 0, display: "flex", alignItems: "center" }}>
+                    <IconButton
+                        size="large"
+                        aria-label="main menu"
+                        aria-controls="main-menu-appbar"
+                        aria-haspopup="true"
+                        onClick={handleOpenMainMenu}
+                        color="inherit"
+                        sx={{ color: "text.primary" }}
+                    >
+                        <MenuIcon />
+                    </IconButton>
+                    <Menu
+                        id="main-menu-appbar"
+                        anchorEl={anchorElMain}
+                        anchorOrigin={{
+                            vertical: "bottom",
+                            horizontal: "right",
+                        }}
+                        keepMounted
+                        transformOrigin={{
+                            vertical: "top",
+                            horizontal: "right",
+                        }}
+                        open={Boolean(anchorElMain)}
+                        onClose={handleCloseMainMenu}
+                    >
+                        {mainMenuItems.map((item) => (
+                            <MenuItem key={item.key} onClick={handleCloseMainMenu} component={Link} href={item.href || "#"}>
+                                <ListItemIcon>
+                                    {item.icon}
+                                </ListItemIcon>
+                                <Typography textAlign="center">{item.label}</Typography>
+                            </MenuItem>
+                        ))}
+                    </Menu>
 
-                {user && (
-                    <Dropdown menu={{ items: userDropdownMenuItems }} placement="bottomRight">
-                        <Space style={{ cursor: "pointer" }}>
-                            <Avatar
-                                size="default"
-                                icon={<UserOutlined />}
-                                style={{ backgroundColor: "#87d068" }}
-                            />
-                            <Text strong>{user.username}</Text>
-                        </Space>
-                    </Dropdown>
-                )}
-
-                <ModeToggle />
-            </Space>
-        </AntHeader>
+                    {isAuthenticated ? (
+                        <>
+                            {contextUser && (
+                                <Typography variant="body1" sx={{ mr: 1, display: { xs: "none", sm: "block" }, color: "text.primary" }}>
+                                    {contextUser.username}
+                                </Typography>
+                            )}
+                            <IconButton
+                                size="large"
+                                aria-label="account of current user"
+                                aria-controls="menu-appbar-user"
+                                aria-haspopup="true"
+                                onClick={handleOpenUserMenu}
+                                color="inherit"
+                            >
+                                <Avatar sx={{ bgcolor: "#87d068" }}>
+                                    <AccountCircle />
+                                </Avatar>
+                            </IconButton>
+                            <Menu
+                                sx={{ mt: "45px" }}
+                                id="menu-appbar-user"
+                                anchorEl={anchorElUser}
+                                anchorOrigin={{
+                                    vertical: "top",
+                                    horizontal: "right",
+                                }}
+                                keepMounted
+                                transformOrigin={{
+                                    vertical: "top",
+                                    horizontal: "right",
+                                }}
+                                open={Boolean(anchorElUser)}
+                                onClose={handleCloseUserMenu}
+                            >
+                                {userDropdownMenuItems.map((item) => (
+                                    <MenuItem
+                                        key={item.key}
+                                        onClick={handleCloseUserMenu}
+                                        component={item.href ? Link : 'li'}
+                                        href={item.href || undefined}
+                                    >
+                                        {item.label}
+                                    </MenuItem>
+                                ))}
+                            </Menu>
+                        </>
+                    ) : (
+                        null
+                    )}
+                </Box>
+            </Toolbar>
+        </AppBar>
     );
 }

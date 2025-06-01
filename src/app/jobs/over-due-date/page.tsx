@@ -4,36 +4,38 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import {
-  TableContainer, 
-  Table, 
-  TableHead, 
-  TableRow, 
-  TableCell, 
-  TableBody, 
-  Button, 
-  CardHeader, 
-  CardContent, 
-  CircularProgress, 
-  Box, 
-  useMediaQuery, 
-  Alert, 
-  Snackbar 
+  TableContainer,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  Button,
+  CardHeader,
+  CardContent,
+  CircularProgress,
+  Box,
+  useMediaQuery,
+  Alert,
+  Snackbar,
+  Card,
 } from "@mui/material";
 import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
-import Cookies from "js-cookie"; // Import js-cookie
+import Cookies from "js-cookie";
 
 interface WorkOrder {
-  id: string;
+  id: number;
   title: string;
-  order: string;
-  assignerName: string;
   requesterName: string;
+  assignerName: string | null;
   statusName: "Open" | "Processing" | "Completed" | "Cancelled";
-  createdAt: string;
+  createdAt: string | null;
   dueDate: string;
+  description?: string | null;
+  userName?: string | null;
+  completedAt?: string | null;
 }
-
 const WorkOverDuePage: React.FC = () => {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
@@ -95,7 +97,8 @@ const WorkOverDuePage: React.FC = () => {
     {
       header: "Created On",
       key: "createdAt",
-      render: (row: WorkOrder) => dayjs(row.createdAt).format("YYYY-MM-DD HH:mm:ss"),
+      render: (row: WorkOrder) =>
+        dayjs(row.createdAt).format("YYYY-MM-DD HH:mm:ss"),
     },
     {
       header: "Delay",
@@ -121,7 +124,7 @@ const WorkOverDuePage: React.FC = () => {
           setSnackbarMessage("No access token found. Please log in.");
           setSnackbarSeverity("error");
           setSnackbarOpen(true);
-          router.push("/login"); // Using router here
+          router.push("/login");
           return;
         }
 
@@ -167,7 +170,8 @@ const WorkOverDuePage: React.FC = () => {
   return (
     <div>
       <Box sx={{ padding: isSmallScreen ? "12px" : "24px" }}>
-        <CardHeader title="Recive Work Order">
+        <Card>
+          <CardHeader title="Recive Work Order" />
           <CardContent>
             {loading ? (
               <Box sx={{ textAlign: "center", padding: "20px" }}>
@@ -191,13 +195,7 @@ const WorkOverDuePage: React.FC = () => {
                         <TableRow key={row.id}>
                           {columns.map((column: any) => (
                             <TableCell key={column.key}>
-                              {column.render
-                                ? column.render(
-                                    row,
-                                    row,
-                                    workOrders.indexOf(row)
-                                  )
-                                : row[column.dataIndex]}
+                              {column.render(row, workOrders.indexOf(row))}
                             </TableCell>
                           ))}
                         </TableRow>
@@ -224,7 +222,7 @@ const WorkOverDuePage: React.FC = () => {
               </>
             )}
           </CardContent>
-        </CardHeader>
+        </Card>
         <Snackbar
           open={snackbarOpen}
           autoHideDuration={6000}

@@ -13,14 +13,14 @@ export async function POST(request: Request) {
       {
         status: 200,
         headers: {
-          "Set-Cookie": `sessionToken=; Path=/; HttpOnly; Max-Age=0`,
+          "Set-Cookie": `accessToken=; Path=/; HttpOnly; Max-Age=0`,
         },
       }
     );
   }
   const cookieStore = await cookies();
-  const sessionToken = cookieStore.get("sessionToken");
-  if (!sessionToken) {
+  const accessToken = cookieStore.get("accessToken");
+  if (!accessToken) {
     return Response.json(
       { message: "Session token not received" },
       {
@@ -30,12 +30,12 @@ export async function POST(request: Request) {
   }
   try {
     const result = await authApiRequest.logoutFromNextServerToServer(
-      sessionToken.value
+      accessToken.value
     );
     return Response.json(result.payload, {
       status: 200,
       headers: {
-        "Set-Cookie": `sessionToken=; Path=/; HttpOnly; Max-Age=0`,
+        "Set-Cookie": `accessToken=; Path=/; HttpOnly; Max-Age=0`,
       },
     });
   } catch (error) {

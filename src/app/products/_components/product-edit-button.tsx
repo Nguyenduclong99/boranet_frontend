@@ -12,7 +12,7 @@ export default function ProductEditButton({
 }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   useEffect(() => {
-    setIsAuthenticated(Boolean(localStorage.getItem('sessionToken')))
+    setIsAuthenticated(Boolean(localStorage.getItem('accessToken')))
   }, [])
   if (!isAuthenticated) return null
 

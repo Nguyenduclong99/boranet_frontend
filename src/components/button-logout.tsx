@@ -20,7 +20,7 @@ export default function ButtonLogout() {
 
     const handleLogout = async () => {
         try {
-            const token = getCookie('sessionToken');
+            const token = getCookie('accessToken');
 
             const response = await fetch(`${API_BASE_URL}/api/auth/logout`, { // Use full URL
                 method: 'DELETE',
@@ -34,11 +34,11 @@ export default function ButtonLogout() {
                 throw new Error('Logout failed');
             }
             Cookies.remove("accessToken");
-            Cookies.remove("sessionToken");
+            Cookies.remove("accessToken");
             Cookies.remove("accessTokenExpiresAt");
             Cookies.remove("userRoles");
             localStorage.removeItem('accessToken');
-            localStorage.removeItem('sessionToken');
+            localStorage.removeItem('accessToken');
             localStorage.removeItem('accessTokenExpiresAt');
             setUser(null);
             router.push('/login');

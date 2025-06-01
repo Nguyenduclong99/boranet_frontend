@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { jwtDecode } from 'jwt-decode'; // Import jwtDecode
+import { jwtDecode } from 'jwt-decode';
 
 const privatePaths = ['/jobs/over-due', '/jobs/order-list', '/members'];
 const authPaths = ['/login', '/register'];
@@ -8,7 +8,7 @@ const productEditRegex = /^\/jobs\/\d+\/edit$/;
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
-    const accessToken = request.cookies.get('sessionToken')?.value;
+    const accessToken = request.cookies.get('accessToken')?.value;
 
     const isPrivatePath = privatePaths.some((path) => pathname.startsWith(path));
     const isAuthPath = authPaths.some((path) => pathname.startsWith(path));
@@ -22,7 +22,7 @@ export async function middleware(request: NextRequest) {
         if (pathname.startsWith('/members')) {
             try {
                 const decodedToken: any = jwtDecode(accessToken);
-                const roles: string[] = decodedToken.roles || []; // Lấy danh sách roles từ token
+                const roles: string[] = decodedToken.roles || [];
                 if (!roles.includes('ROLE_ADMIN')) {
                     debugger
                     return NextResponse.redirect(new URL('/', request.url));

@@ -41,14 +41,24 @@ dayjs.extend(customParseFormat);
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_ENDPOINT;
 
+interface CompanyType {
+  id?: number;
+  name: string;
+}
+
+interface DepartmentType {
+  id?: number;
+  name: string;
+}
+
 interface EmployeeType {
   key: React.Key;
   no: number;
   id: string;
   name: string;
   password?: string;
-  company: string;
-  department: string;
+  company: CompanyType;
+  department: DepartmentType;
   title: string;
   phone?: string;
   email?: string;
@@ -63,8 +73,8 @@ interface EmployeeType {
 
 const employeeStatusOptions = ["Employed", "On Leave", "Terminated"];
 const employeeLevelOptions = ["Staff", "Senior Staff", "Manager", "Director"];
-const departmentOptions = ["Sales", "Marketing", "IT", "HR", "Finance"];
 const contractTypeOptions = ["Full Time Emp", "Part Time Emp", "Contractor"];
+const authOptions = [0, 1, 2, 3, 4, 5];
 
 const EmployeesPage = () => {
   const router = useRouter();
@@ -95,17 +105,62 @@ const EmployeesPage = () => {
     "success"
   );
 
-  // State for form fields (manual handling without Ant Design Form)
-  const [formValues, setFormValues] = useState<Partial<EmployeeType>>({});
+  const [companies, setCompanies] = useState<CompanyType[]>([]);
+  const [departments, setDepartments] = useState<DepartmentType[]>([]);
+
+  const [formValues, setFormValues] = useState<Partial<EmployeeType>>({
+    company: { name: "" },
+    department: { name: "" },
+  });
   const [resetPasswordValue, setResetPasswordValue] = useState("");
 
   useEffect(() => {
-    if (isTokenExpired()) {
-            Cookies.remove("accessToken");
-            Cookies.remove("accessTokenExpiresAt");
-            router.push("/login");
+    const token = Cookies.get("accessToken");
+    if (token) {
+      setCurrentUserToken(token);
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchCompaniesAndDepartments = async () => {
+      const token = Cookies.get("accessToken");
+      if (!token) {
+        showSnackbar("Authentication token not found. Please log in.", "error");
+        router.push("/login");
+        return;
+      }
+
+      try {
+        const companiesResponse = await fetch(`${API_BASE_URL}/api/companies`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!companiesResponse.ok) {
+          throw new Error("Failed to fetch companies");
         }
-    }, [router]);
+        const companiesData: CompanyType[] = await companiesResponse.json();
+        setCompanies(companiesData);
+
+        const departmentsResponse = await fetch(`${API_BASE_URL}/api/departments`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!departmentsResponse.ok) {
+          throw new Error("Failed to fetch departments");
+        }
+        const departmentsData: DepartmentType[] = await departmentsResponse.json();
+        setDepartments(departmentsData);
+
+      } catch (error) {
+        console.error("Error fetching companies or departments:", error);
+        showSnackbar("Error loading department options", "error");
+      }
+    };
+
+    fetchCompaniesAndDepartments();
+  }, [currentUserToken, router]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -124,13 +179,16 @@ const EmployeesPage = () => {
         const data = await response.json();
         const dataWithKeys = data.map((item: any, index: number) => ({
           ...item,
-          key: item.id, // Use id as key if available, otherwise index
+          key: item.id,
           no: index + 1,
+          company: { name: item.company || "" },
+          department: { name: item.department || "" },
+          auth: Number(item.auth),
         }));
         setEmployeeData(dataWithKeys);
       } catch (error) {
         console.error("Error fetching data:", error);
-        showSnackbar("Có lỗi xảy ra khi tải dữ liệu nhân viên", "error");
+        showSnackbar("Error fetching employee data", "error");
       }
     };
 
@@ -157,12 +215,15 @@ const EmployeesPage = () => {
     setSelectedEmployee(employee);
     setFormValues({
       ...employee,
+      company: employee.company || { name: "" },
+      department: employee.department || { name: "" },
       joinDate: employee.joinDate
         ? dayjs(employee.joinDate, "YYYY-MM-DD").format("YYYY-MM-DD")
         : "",
       startDate: employee.startDate
         ? dayjs(employee.startDate, "YYYY-MM-DD").format("YYYY-MM-DD")
         : "",
+      auth: employee.auth,
     });
     setIsModalVisible(true);
     setIsEditing(false);
@@ -174,17 +235,39 @@ const EmployeesPage = () => {
 
   const handleCancelEdit = () => {
     setIsEditing(false);
-    setFormValues({}); // Reset form values
+    if (selectedEmployee) {
+      setFormValues({
+        ...selectedEmployee,
+        company: selectedEmployee.company || { name: "" },
+        department: selectedEmployee.department || { name: "" },
+        joinDate: selectedEmployee.joinDate
+          ? dayjs(selectedEmployee.joinDate, "YYYY-MM-DD").format("YYYY-MM-DD")
+          : "",
+        startDate: selectedEmployee.startDate
+          ? dayjs(selectedEmployee.startDate, "YYYY-MM-DD").format("YYYY-MM-DD")
+          : "",
+        auth: selectedEmployee.auth,
+      });
+    }
   };
 
-  const handleFormChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFormChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;
     setFormValues({ ...formValues, [name]: value });
   };
 
   const handleSelectChange = (event: any) => {
     const { name, value } = event.target;
-    setFormValues({ ...formValues, [name]: value });
+
+    if (name === "company") {
+      const selectedCompany = companies.find(c => c.name === value);
+      setFormValues({ ...formValues, company: selectedCompany || { name: value } });
+    } else if (name === "department") {
+      const selectedDepartment = departments.find(d => d.name === value);
+      setFormValues({ ...formValues, department: selectedDepartment || { name: value } });
+    } else {
+      setFormValues({ ...formValues, [name]: value });
+    }
   };
 
   const handleDateChange = (name: string, date: dayjs.Dayjs | null) => {
@@ -225,65 +308,27 @@ const EmployeesPage = () => {
 
     try {
       setLoading(true);
-      // Basic validation (can be enhanced)
-      if (!formValues.name || !formValues.company || !formValues.department || !formValues.title || !formValues.contract || !formValues.status || !formValues.level) {
-          showSnackbar("Vui lòng điền đầy đủ các trường bắt buộc", "error");
-          setLoading(false);
-          return;
+      if (
+        !formValues.name ||
+        !formValues.company?.name ||
+        !formValues.department?.name ||
+        !formValues.title ||
+        !formValues.contract ||
+        !formValues.status ||
+        !formValues.level ||
+        formValues.auth === undefined
+      ) {
+        showSnackbar("Please fill in all required fields", "error");
+        setLoading(false);
+        return;
       }
 
-
       const userData = {
-        username: formValues.id,
+        username: selectedEmployee.id,
         email: formValues.email,
-        firstName: formValues.name?.split(" ")[0],
-        lastName: formValues.name?.split(" ").slice(1).join(" "),
+        name: formValues.name,
         phone: formValues.phone,
         company: formValues.company,
-        department: formValues.department,
-        title: formValues.title,
-        employmentType: formValues.employmentType, // Assuming employmentType is also in formValues
-        startDate: formValues.startDate,
-        joinDate: formValues.joinDate, // Assuming joinDate is also in formValues
-        contract: formValues.contract,
-        status: formValues.status,
-        level: formValues.level,
-      };
-
-      const updatedUser = await updateUser(
-        userData,
-        selectedEmployee.id,
-        currentUserToken
-      );
-
-      // Update displayed data in the table
-      setEmployeeData(employeeData.map(emp =>
-          emp.id === selectedEmployee.id ? {
-              ...emp,
-              ...updatedUser,
-              name: `${updatedUser.firstName} ${updatedUser.lastName}`,
-              // Ensure other fields are updated from the form values if the API doesn't return them
-              phone: formValues.phone,
-              email: formValues.email,
-              department: formValues.department,
-              title: formValues.title,
-              employmentType: formValues.employmentType,
-              startDate: formValues.startDate,
-              joinDate: formValues.joinDate,
-              contract: formValues.contract,
-              status: formValues.status,
-              level: formValues.level,
-          } : emp
-      ));
-
-
-      setSelectedEmployee({
-        ...selectedEmployee,
-        ...updatedUser,
-        name: `${updatedUser.firstName} ${updatedUser.lastName}`,
-        // Update selected employee details from form values for immediate display
-        phone: formValues.phone,
-        email: formValues.email,
         department: formValues.department,
         title: formValues.title,
         employmentType: formValues.employmentType,
@@ -292,15 +337,66 @@ const EmployeesPage = () => {
         contract: formValues.contract,
         status: formValues.status,
         level: formValues.level,
+        auth: Number(formValues.auth), // Ensure auth is a number
+      };
+
+      const updatedUser = await updateUser(
+        userData,
+        selectedEmployee.id,
+        currentUserToken
+      );
+
+      setEmployeeData(
+        employeeData.map((emp) =>
+          emp.id === selectedEmployee.id
+            ? {
+                ...emp,
+                ...updatedUser,
+                name: updatedUser.name,
+                company: updatedUser.company || {name: ""},
+                department: updatedUser.department || {name: ""},
+                phone: updatedUser.phone,
+                email: updatedUser.email,
+                title: updatedUser.title,
+                employmentType: updatedUser.employmentType,
+                startDate: updatedUser.startDate,
+                joinDate: updatedUser.joinDate,
+                contract: updatedUser.contract,
+                status: updatedUser.status,
+                level: updatedUser.level,
+                auth: updatedUser.auth,
+              }
+            : emp
+        )
+      );
+
+      setSelectedEmployee({
+        ...selectedEmployee,
+        ...updatedUser,
+        name: updatedUser.name,
+        company: updatedUser.company || {name: ""},
+        department: updatedUser.department || {name: ""},
+        phone: updatedUser.phone,
+        email: updatedUser.email,
+        title: updatedUser.title,
+        employmentType: updatedUser.employmentType,
+        startDate: updatedUser.startDate,
+        joinDate: updatedUser.joinDate,
+        contract: updatedUser.contract,
+        status: updatedUser.status,
+        level: updatedUser.level,
+        auth: updatedUser.auth,
       });
 
-
-      showSnackbar("Cập nhật thông tin thành công", "success");
+      showSnackbar("Employee information updated successfully", "success");
       setIsEditing(false);
-      setIsModalVisible(false); // Close modal after saving
+      setIsModalVisible(false);
     } catch (error: any) {
       console.error("Error updating user:", error);
-      showSnackbar(error.message || "Có lỗi xảy ra khi cập nhật", "error");
+      showSnackbar(
+        error.message || "Error updating employee information",
+        "error"
+      );
     } finally {
       setLoading(false);
     }
@@ -309,7 +405,7 @@ const EmployeesPage = () => {
   const showResetPasswordModal = (employee: EmployeeType) => {
     setSelectedEmployee(employee);
     setIsResetPasswordModalVisible(true);
-    setResetPasswordValue(""); // Reset password input
+    setResetPasswordValue("");
   };
 
   const handleResetPasswordSubmit = async () => {
@@ -317,11 +413,13 @@ const EmployeesPage = () => {
 
     try {
       setLoading(true);
-      // Basic validation for password
       if (!resetPasswordValue || resetPasswordValue.length < 6) {
-          showSnackbar("Mật khẩu mới phải có ít nhất 6 ký tự", "error");
-          setLoading(false);
-          return;
+        showSnackbar(
+          "New password must be at least 6 characters long",
+          "error"
+        );
+        setLoading(false);
+        return;
       }
 
       const response = await fetch(
@@ -341,11 +439,11 @@ const EmployeesPage = () => {
         throw new Error(errorData.message || "Failed to reset password");
       }
 
-      showSnackbar("Đặt lại mật khẩu thành công", "success");
+      showSnackbar("Password reset successfully", "success");
       setIsResetPasswordModalVisible(false);
     } catch (error: any) {
       console.error("Error resetting password:", error);
-      showSnackbar(error.message || "Có lỗi xảy ra khi đặt lại mật khẩu", "error");
+      showSnackbar(error.message || "Error resetting password", "error");
     } finally {
       setLoading(false);
     }
@@ -360,7 +458,7 @@ const EmployeesPage = () => {
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <TextField
-                label="Họ và tên"
+                label="Full Name"
                 name="name"
                 value={formValues.name || ""}
                 onChange={handleFormChange}
@@ -378,27 +476,36 @@ const EmployeesPage = () => {
               />
             </Grid>
             <Grid item xs={12}>
-              <TextField
-                label="Công ty"
-                name="company"
-                value={formValues.company || ""}
-                onChange={handleFormChange}
-                fullWidth
-                required
-              />
+              <FormControl fullWidth required>
+                <InputLabel>Company</InputLabel>
+                <Select
+                  label="Company"
+                  name="company"
+                  value={formValues.company?.name || ""}
+                  onChange={handleSelectChange}
+                >
+                  <MenuItem value="">Select Company</MenuItem>
+                  {companies.map((comp) => (
+                    <MenuItem key={comp.id || comp.name} value={comp.name}>
+                      {comp.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid item xs={12}>
               <FormControl fullWidth required>
-                <InputLabel>Phòng ban</InputLabel>
+                <InputLabel>Department</InputLabel>
                 <Select
-                  label="Phòng ban"
+                  label="Department"
                   name="department"
-                  value={formValues.department || ""}
+                  value={formValues.department?.name || ""}
                   onChange={handleSelectChange}
                 >
-                  {departmentOptions.map((dept) => (
-                    <MenuItem key={dept} value={dept}>
-                      {dept}
+                  <MenuItem value="">Select Department</MenuItem>
+                  {departments.map((dept) => (
+                    <MenuItem key={dept.id || dept.name} value={dept.name}>
+                      {dept.name}
                     </MenuItem>
                   ))}
                 </Select>
@@ -406,7 +513,7 @@ const EmployeesPage = () => {
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="Chức vụ"
+                label="Title"
                 name="title"
                 value={formValues.title || ""}
                 onChange={handleFormChange}
@@ -416,7 +523,7 @@ const EmployeesPage = () => {
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="Số điện thoại"
+                label="Phone Number"
                 name="phone"
                 value={formValues.phone || ""}
                 onChange={handleFormChange}
@@ -435,27 +542,29 @@ const EmployeesPage = () => {
             </Grid>
             <Grid item xs={12}>
               <DatePicker
-                label="Ngày vào công ty"
+                label="Join Date"
                 value={formValues.joinDate ? dayjs(formValues.joinDate) : null}
                 onChange={(date) => handleDateChange("joinDate", date)}
-                format="DD/MM/YYYY"
+                format="YYYY-MM-DD" // Use YYYY-MM-DD for consistency with backend
                 slotProps={{ textField: { fullWidth: true, required: true } }}
               />
             </Grid>
             <Grid item xs={12}>
               <DatePicker
-                label="Ngày bắt đầu làm việc"
-                value={formValues.startDate ? dayjs(formValues.startDate) : null}
+                label="Start Date"
+                value={
+                  formValues.startDate ? dayjs(formValues.startDate) : null
+                }
                 onChange={(date) => handleDateChange("startDate", date)}
-                format="YYYY-MM-DD"
+                format="YYYY-MM-DD" // Use YYYY-MM-DD for consistency with backend
                 slotProps={{ textField: { fullWidth: true, required: true } }}
               />
             </Grid>
             <Grid item xs={12}>
               <FormControl fullWidth required>
-                <InputLabel>Loại hợp đồng</InputLabel>
+                <InputLabel>Contract Type</InputLabel>
                 <Select
-                  label="Loại hợp đồng"
+                  label="Contract Type"
                   name="contract"
                   value={formValues.contract || ""}
                   onChange={handleSelectChange}
@@ -470,9 +579,9 @@ const EmployeesPage = () => {
             </Grid>
             <Grid item xs={12}>
               <FormControl fullWidth required>
-                <InputLabel>Trạng thái</InputLabel>
+                <InputLabel>Status</InputLabel>
                 <Select
-                  label="Trạng thái"
+                  label="Status"
                   name="status"
                   value={formValues.status || ""}
                   onChange={handleSelectChange}
@@ -487,9 +596,9 @@ const EmployeesPage = () => {
             </Grid>
             <Grid item xs={12}>
               <FormControl fullWidth required>
-                <InputLabel>Cấp bậc</InputLabel>
+                <InputLabel>Level</InputLabel>
                 <Select
-                  label="Cấp bậc"
+                  label="Level"
                   name="level"
                   value={formValues.level || ""}
                   onChange={handleSelectChange}
@@ -502,68 +611,113 @@ const EmployeesPage = () => {
                 </Select>
               </FormControl>
             </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Auth Level"
+                name="auth"
+                type="number" // Set type to number for numeric input
+                value={formValues.auth === undefined ? "" : formValues.auth}
+                onChange={handleFormChange} // Use handleFormChange for text fields
+                fullWidth
+                required
+                inputProps={{ min: 0 }} // Optional: Add min value constraint
+              />
+            </Grid>
           </Grid>
         </LocalizationProvider>
       );
     }
 
+    // Display mode content
     return (
       <Grid container spacing={2}>
         <Grid item xs={12}>
           <Typography variant="h6" gutterBottom>
-            Thông tin chi tiết
+            Employee Details
           </Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Name</Typography>
-          <Typography variant="body1" fontWeight="bold">{selectedEmployee.name}</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Name
+          </Typography>
+          <Typography variant="body1" fontWeight="bold">
+            {selectedEmployee.name}
+          </Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">ID</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            ID
+          </Typography>
           <Typography variant="body1">{selectedEmployee.id}</Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Company</Typography>
-          <Typography variant="body1">{selectedEmployee.company}</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Company
+          </Typography>
+          <Typography variant="body1">{selectedEmployee.company?.name || 'N/A'}</Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Department</Typography>
-          <Typography variant="body1">{selectedEmployee.department}</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Department
+          </Typography>
+          <Typography variant="body1">{selectedEmployee.department?.name || 'N/A'}</Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Title</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Title
+          </Typography>
           <Typography variant="body1">{selectedEmployee.title}</Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Phone</Typography>
-          <Typography variant="body1">{selectedEmployee.phone || "N/A"}</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Phone
+          </Typography>
+          <Typography variant="body1">
+            {selectedEmployee.phone || "N/A"}
+          </Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Email</Typography>
-          <Typography variant="body1">{selectedEmployee.email || "N/A"}</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Email
+          </Typography>
+          <Typography variant="body1">
+            {selectedEmployee.email || "N/A"}
+          </Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Join Date</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Join Date
+          </Typography>
           <Typography variant="body1">{selectedEmployee.joinDate}</Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Start Date</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Start Date
+          </Typography>
           <Typography variant="body1">{selectedEmployee.startDate}</Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Contract</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Contract
+          </Typography>
           <Typography variant="body1">{selectedEmployee.contract}</Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Status</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Status
+          </Typography>
           <Typography variant="body1">{selectedEmployee.status}</Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Level</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Level
+          </Typography>
           <Typography variant="body1">{selectedEmployee.level}</Typography>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Typography variant="subtitle1" color="text.secondary">Auth Level</Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Auth Level
+          </Typography>
           <Typography variant="body1">{selectedEmployee.auth}</Typography>
         </Grid>
       </Grid>
@@ -583,185 +737,193 @@ const EmployeesPage = () => {
 
   return (
     <div>
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Container maxWidth="lg" sx={{ py: 3 }}>
-        <Card>
-          <CardContent>
-            <Typography variant="h4" gutterBottom>
-              Quản lý nhân viên
-            </Typography>
-            <TableContainer component={Paper}>
-              <Table sx={{ minWidth: 650 }} aria-label="employee table">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>No</TableCell>
-                    <TableCell>ID</TableCell>
-                    <TableCell>Company</TableCell>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Tel</TableCell>
-                    <TableCell>Title</TableCell>
-                    <TableCell>Department</TableCell>
-                    <TableCell>Start Date</TableCell>
-                    <TableCell>Employment Type</TableCell>
-                    <TableCell>Auth</TableCell>
-                    <TableCell>Action</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {employeeData
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((employee) => (
-                      <TableRow
-                        key={employee.key}
-                        sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                      >
-                        <TableCell component="th" scope="row">
-                          {employee.no}
-                        </TableCell>
-                        <TableCell>
-                          <Button onClick={() => showEmployeeDetails(employee)}>
-                            {employee.id}
-                          </Button>
-                        </TableCell>
-                        <TableCell>{employee.company}</TableCell>
-                        <TableCell>{employee.name}</TableCell>
-                        <TableCell>{employee.phone || "N/A"}</TableCell>
-                        <TableCell>{employee.title}</TableCell>
-                        <TableCell>{employee.department}</TableCell>
-                        <TableCell>
-                          {employee.startDate
-                            ? dayjs(employee.startDate).format("YYYY-MM-DD")
-                            : "N/A"}
-                        </TableCell>
-                        <TableCell>{employee.employmentType}</TableCell>
-                        <TableCell>{employee.auth}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
+      <LocalizationProvider dateAdapter={AdapterDayjs}>
+        <Container maxWidth="lg" sx={{ py: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="h4" gutterBottom>
+                Employee Management
+              </Typography>
+              <TableContainer component={Paper}>
+                <Table sx={{ minWidth: 650 }} aria-label="employee table">
+                  <TableHead sx={{ backgroundColor: "black" }}>
+                    <TableRow>
+                      <TableCell sx={{ color: "white" }}>No</TableCell>
+                      <TableCell sx={{ color: "white" }}>ID</TableCell>
+                      <TableCell sx={{ color: "white" }}>Company</TableCell>
+                      <TableCell sx={{ color: "white" }}>Name</TableCell>
+                      <TableCell sx={{ color: "white" }}>Tel</TableCell>
+                      <TableCell sx={{ color: "white" }}>Title</TableCell>
+                      <TableCell sx={{ color: "white" }}>Department</TableCell>
+                      <TableCell sx={{ color: "white" }}>Start Date</TableCell>
+                      <TableCell sx={{ color: "white" }}>
+                        Employment Type
+                      </TableCell>
+                      <TableCell sx={{ color: "white" }}>Auth</TableCell>
+                      <TableCell sx={{ color: "white" }}>Action</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {employeeData
+                      .slice(
+                        page * rowsPerPage,
+                        page * rowsPerPage + rowsPerPage
+                      )
+                      .map((employee) => (
+                        <TableRow
+                          key={employee.key}
+                          sx={{
+                            "&:last-child td, &:last-child th": { border: 0 },
+                          }}
+                        >
+                          <TableCell component="th" scope="row">
+                            {employee.no}
+                          </TableCell>
+                          <TableCell>
                             <Button
-                              variant="text"
-                              size="small"
                               onClick={() => showEmployeeDetails(employee)}
                             >
-                              View
+                              {employee.id}
                             </Button>
-                            <Button
-                              variant="text"
-                              size="small"
-                              onClick={() => showResetPasswordModal(employee)}
-                            >
-                              Reset password
-                            </Button>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <TablePagination
-              rowsPerPageOptions={[10, 20, 50]}
-              component="div"
-              count={employeeData.length}
-              rowsPerPage={rowsPerPage}
-              page={page}
-              onPageChange={handleChangePage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-              labelRowsPerPage="Số hàng mỗi trang:"
-              labelDisplayedRows={({ from, to, count }) =>
-                `Tổng ${count} nhân viên`
-              }
-            />
-          </CardContent>
-        </Card>
+                          </TableCell>
+                          <TableCell>{employee.company?.name || 'N/A'}</TableCell>
+                          <TableCell>{employee.name}</TableCell>
+                          <TableCell>{employee.phone || "N/A"}</TableCell>
+                          <TableCell>{employee.title}</TableCell>
+                          <TableCell>{employee.department?.name || 'N/A'}</TableCell>
+                          <TableCell>
+                            {employee.startDate
+                              ? dayjs(employee.startDate).format("YYYY-MM-DD")
+                              : "N/A"}
+                          </TableCell>
+                          <TableCell>{employee.employmentType}</TableCell>
+                          <TableCell>{employee.auth}</TableCell>
+                          <TableCell>
+                            <Box sx={{ display: "flex", gap: 1 }}>
+                              <Button
+                                variant="text"
+                                size="small"
+                                onClick={() => showEmployeeDetails(employee)}
+                              >
+                                View
+                              </Button>
+                              <Button
+                                variant="text"
+                                size="small"
+                                onClick={() => showResetPasswordModal(employee)}
+                              >
+                                Reset password
+                              </Button>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePagination
+                rowsPerPageOptions={[10, 20, 50]}
+                component="div"
+                count={employeeData.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                labelRowsPerPage="Rows per page:"
+                labelDisplayedRows={({ from, to, count }) =>
+                  `Total ${count} employees`
+                }
+              />
+            </CardContent>
+          </Card>
 
-        {/* Employee Details/Edit Dialog */}
-        <Dialog
-          open={isModalVisible}
-          onClose={() => {
-            setIsModalVisible(false);
-            setIsEditing(false);
-            setFormValues({}); // Reset form values on close
-          }}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>
-            {isEditing ? "Chỉnh sửa thông tin nhân viên" : "Thông tin chi tiết"}
-          </DialogTitle>
-          <DialogContent dividers>{renderModalContent()}</DialogContent>
-          <DialogActions>
-            {isEditing ? (
-              <>
-                <Button onClick={handleCancelEdit}>Hủy</Button>
-                <Button
-                  onClick={handleSave}
-                  variant="contained"
-                  disabled={loading}
-                >
-                  {loading ? "Đang lưu..." : "Lưu thay đổi"}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button onClick={() => setIsModalVisible(false)}>Đóng</Button>
-                <Button onClick={handleEdit} variant="contained">
-                  Chỉnh sửa
-                </Button>
-              </>
-            )}
-          </DialogActions>
-        </Dialog>
-
-        {/* Reset Password Dialog */}
-        <Dialog
-          open={isResetPasswordModalVisible}
-          onClose={() => setIsResetPasswordModalVisible(false)}
-          maxWidth="xs"
-          fullWidth
-        >
-          <DialogTitle>Đặt lại mật khẩu</DialogTitle>
-          <DialogContent dividers>
-            <TextField
-              label="Mật khẩu mới"
-              type="password"
-              fullWidth
-              value={resetPasswordValue}
-              onChange={(e) => setResetPasswordValue(e.target.value)}
-              required
-              inputProps={{ minLength: 6 }}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setIsResetPasswordModalVisible(false)}>
-              Hủy
-            </Button>
-            <Button
-              onClick={handleResetPasswordSubmit}
-              variant="contained"
-              disabled={loading}
-            >
-              {loading ? "Đang đặt lại..." : "Đặt lại"}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Snackbar for messages */}
-        <Snackbar
-          open={snackbarOpen}
-          autoHideDuration={6000}
-          onClose={handleSnackbarClose}
-          anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        >
-          <Alert
-            onClose={handleSnackbarClose}
-            severity={snackbarSeverity}
-            sx={{ width: "100%" }}
+          <Dialog
+            open={isModalVisible}
+            onClose={() => {
+              setIsModalVisible(false);
+              setIsEditing(false);
+              setFormValues({ company: { name: "" }, department: { name: "" } });
+            }}
+            maxWidth="sm"
+            fullWidth
           >
-            {snackbarMessage}
-          </Alert>
-        </Snackbar>
-      </Container>
-    </LocalizationProvider>
+            <DialogTitle>
+              {isEditing ? "Edit Employee Information" : "Employee Details"}
+            </DialogTitle>
+            <DialogContent dividers>{renderModalContent()}</DialogContent>
+            <DialogActions>
+              {isEditing ? (
+                <>
+                  <Button onClick={handleCancelEdit}>Cancel</Button>
+                  <Button
+                    onClick={handleSave}
+                    variant="contained"
+                    disabled={loading}
+                  >
+                    {loading ? "Saving..." : "Save Changes"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={() => setIsModalVisible(false)}>
+                    Close
+                  </Button>
+                  <Button onClick={handleEdit} variant="contained">
+                    Edit
+                  </Button>
+                </>
+              )}
+            </DialogActions>
+          </Dialog>
+
+          <Dialog
+            open={isResetPasswordModalVisible}
+            onClose={() => setIsResetPasswordModalVisible(false)}
+            maxWidth="xs"
+            fullWidth
+          >
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogContent dividers>
+              <TextField
+                label="New Password"
+                type="password"
+                fullWidth
+                value={resetPasswordValue}
+                onChange={(e) => setResetPasswordValue(e.target.value)}
+                required
+                inputProps={{ minLength: 6 }}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setIsResetPasswordModalVisible(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleResetPasswordSubmit}
+                variant="contained"
+                disabled={loading}
+              >
+                {loading ? "Resetting..." : "Reset"}
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          <Snackbar
+            open={snackbarOpen}
+            autoHideDuration={6000}
+            onClose={handleSnackbarClose}
+            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+          >
+            <Alert
+              onClose={handleSnackbarClose}
+              severity={snackbarSeverity}
+              sx={{ width: "100%" }}
+            >
+              {snackbarMessage}
+            </Alert>
+          </Snackbar>
+        </Container>
+      </LocalizationProvider>
     </div>
   );
 };

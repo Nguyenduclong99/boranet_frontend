@@ -30,7 +30,7 @@ interface LoginResponse {
 
 const LoginForm = () => {
     const [loading, setLoading] = useState(false);
-    const { setUser, setRoles } = useAppContext(); // Assuming you have a setRoles in your context
+    const { setUser, setRoles } = useAppContext();
     const { toast } = useToast();
     const router = useRouter();
     const form = useForm<LoginBodyType>({
@@ -76,9 +76,6 @@ const LoginForm = () => {
             Cookies.set("accessToken", accessToken, { expires: 1 });
             if (expiresAt) {
                 Cookies.set("accessTokenExpiresAt", String(expiresAt), { expires: 1 });
-            }
-            if (typeof window !== "undefined") {
-                Cookies.set("sessionToken", data.accessToken, { expires: 7 });
             }
             if (data.user) {
                 setUser(data.user);

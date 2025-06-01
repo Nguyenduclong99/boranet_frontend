@@ -69,14 +69,11 @@ const request = async <Response>(
           'Content-Type': 'application/json'
         }
   if (isClient()) {
-    const sessionToken = localStorage.getItem('sessionToken')
-    if (sessionToken) {
-      baseHeaders.Authorization = `Bearer ${sessionToken}`
+    const accessToken = localStorage.getItem('accessToken')
+    if (accessToken) {
+      baseHeaders.Authorization = `Bearer ${accessToken}`
     }
   }
-  // Nếu không truyền baseUrl (hoặc baseUrl = undefined) thì lấy từ envConfig.NEXT_PUBLIC_API_ENDPOINT
-  // Nếu truyền baseUrl thì lấy giá trị truyền vào, truyền vào '' thì đồng nghĩa với việc chúng ta gọi API đến Next.js Server
-
   const baseUrl =
     options?.baseUrl === undefined
       ? envConfig.NEXT_PUBLIC_API_ENDPOINT
@@ -98,7 +95,6 @@ const request = async <Response>(
     status: res.status,
     payload
   }
-  // Interceptor là nời chúng ta xử lý request và response trước khi trả về cho phía component
   if (!res.ok) {
     if (res.status === ENTITY_ERROR_STATUS) {
       throw new EntityError(
@@ -121,23 +117,22 @@ const request = async <Response>(
             await clientLogoutRequest
           } catch (error) {
           } finally {
-            localStorage.removeItem('sessionToken')
-            localStorage.removeItem('sessionTokenExpiresAt')
+            localStorage.removeItem('accessToken')
+            localStorage.removeItem('accessTokenExpiresAt')
             clientLogoutRequest = null
             location.href = '/login'
           }
         }
       } else {
-        const sessionToken = (options?.headers as any)?.Authorization.split(
+        const accessToken = (options?.headers as any)?.Authorization.split(
           'Bearer '
         )[1]
-        redirect(`/logout?sessionToken=${sessionToken}`)
+        redirect(`/logout?accessToken=${accessToken}`)
       }
     } else {
       throw new HttpError(data)
     }
   }
-  // Đảm bảo logic dưới đây chỉ chạy ở phía client (browser)
   if (isClient()) {
     if (
       ['auth/login', 'auth/register'].some(
@@ -145,11 +140,11 @@ const request = async <Response>(
       )
     ) {
       const { token, expiresAt } = (payload as LoginResType).data
-      localStorage.setItem('sessionToken', token)
-      localStorage.setItem('sessionTokenExpiresAt', expiresAt)
+      localStorage.setItem('accessToken', token)
+      localStorage.setItem('accessTokenExpiresAt', expiresAt)
     } else if ('auth/logout' === normalizePath(url)) {
-      localStorage.removeItem('sessionToken')
-      localStorage.removeItem('sessionTokenExpiresAt')
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('accessTokenExpiresAt')
     }
   }
   return data

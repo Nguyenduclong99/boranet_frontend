@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 export default function ProductAddButton() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   useEffect(() => {
-    setIsAuthenticated(Boolean(localStorage.getItem('sessionToken')))
+    setIsAuthenticated(Boolean(localStorage.getItem('accessToken')))
   }, [])
 
   if (!isAuthenticated) return null

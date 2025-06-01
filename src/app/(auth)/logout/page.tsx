@@ -26,7 +26,7 @@ export default function ButtonLogout() {
                 throw new Error('Logout failed');
             }
             Cookies.remove("accessToken");
-            Cookies.remove("sessionToken");
+            Cookies.remove("accessToken");
             Cookies.remove("accessTokenExpiresAt");
             Cookies.remove("userRoles");
             setUser(null);
@@ -43,8 +43,8 @@ export default function ButtonLogout() {
 
         } finally {
             router.refresh();
-            localStorage.removeItem('sessionToken');
-            localStorage.removeItem('sessionTokenExpiresAt');
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('accessTokenExpiresAt');
 
         }
     };

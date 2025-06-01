@@ -44,7 +44,7 @@ const RegisterForm = () => {
       const result = await authApiRequest.register(values)
 
       await authApiRequest.auth({
-        sessionToken: result.payload.data.token,
+        accessToken: result.payload.data.token,
         expiresAt: result.payload.data.expiresAt
       })
       toast({

@@ -11,17 +11,17 @@ const authApiRequest = {
   login: (body: LoginBodyType) => http.post<LoginResType>('/auth/login', body),
   register: (body: RegisterBodyType) =>
     http.post<RegisterResType>('/auth/register', body),
-  auth: (body: { sessionToken: string; expiresAt: string }) =>
+  auth: (body: { accessToken: string; expiresAt: string }) =>
     http.post('/api/auth', body, {
       baseUrl: ''
     }),
-  logoutFromNextServerToServer: (sessionToken: string) =>
+  logoutFromNextServerToServer: (accessToken: string) =>
     http.post<MessageResType>(
       '/auth/logout',
       {},
       {
         headers: {
-          Authorization: `Bearer ${sessionToken}`
+          Authorization: `Bearer ${accessToken}`
         }
       }
     )
