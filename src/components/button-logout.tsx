@@ -1,12 +1,13 @@
 'use client'
 
-import authApiRequest from '@/apiRequests/auth'
 import { useAppContext } from '@/app/app-provider'
 import { Button } from '@/components/ui/button'
 import { handleErrorApi } from '@/lib/utils'
 import { usePathname, useRouter } from 'next/navigation'
 import Cookies from "js-cookie";
-const API_BASE_URL = 'http://localhost:8081'; // Add this line
+
+const API_BASE_URL = 'http://localhost:8081';
+
 function getCookie(name: string): string | undefined {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -22,11 +23,11 @@ export default function ButtonLogout() {
         try {
             const token = getCookie('accessToken');
 
-            const response = await fetch(`${API_BASE_URL}/api/auth/logout`, { // Use full URL
+            const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${token}`, // Include the token
-                    'Content-Type': 'application/json', // Or whatever content type your API expects
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
             });
 
@@ -34,10 +35,8 @@ export default function ButtonLogout() {
                 throw new Error('Logout failed');
             }
             Cookies.remove("accessToken");
-            Cookies.remove("accessToken");
             Cookies.remove("accessTokenExpiresAt");
             Cookies.remove("userRoles");
-            localStorage.removeItem('accessToken');
             localStorage.removeItem('accessToken');
             localStorage.removeItem('accessTokenExpiresAt');
             setUser(null);
@@ -53,7 +52,7 @@ export default function ButtonLogout() {
 
     return (
         <Button size={'sm'} onClick={handleLogout}>
-            Đăng xuất
+            Logout
         </Button>
     );
 }

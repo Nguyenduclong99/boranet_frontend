@@ -23,12 +23,12 @@ const DatePicker = ({ label, date, setDate }: DatePickerProps) => {
             InputLabelProps={{
                 shrink: true,
             }}
-            size="small" // Added for smaller size
+            size="small" 
             sx={{
-                '& .MuiInputBase-input': { // Style the input text
-                    padding: '6px 8px', // Adjust padding for smaller size
+                '& .MuiInputBase-input': { 
+                    padding: '6px 8px',
                 },
-                '& .MuiInputLabel-shrink': { // Style the label when it's shrunk
+                '& .MuiInputLabel-shrink': { 
                     transform: 'translate(14px, -4px) scale(0.75)',
                 },
             }}

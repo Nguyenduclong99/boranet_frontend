@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -19,11 +19,17 @@ import {
 } from "@mui/material";
 import Autocomplete from "@mui/material/Autocomplete";
 import { useAppContext } from "@/app/app-provider";
+import IconButton from "@mui/material/IconButton"; // Import IconButton
+import EditIcon from "@mui/icons-material/Edit"; // Import Edit icon
+import DeleteIcon from "@mui/icons-material/Delete"; // Import Delete icon
+import FileDownloadIcon from "@mui/icons-material/FileDownload"; // Import Download icon
+
 interface User {
   id: number;
   username: string;
   name: string;
   email: string;
+  title: string;
 }
 
 interface Comment {
@@ -35,6 +41,16 @@ interface Comment {
   userId: number;
   createdAt: string;
   updatedAt: string;
+  attachments?: CommentAttachment[];
+}
+
+interface CommentAttachment {
+  id: number;
+  fileName: string;
+  filePath: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
 }
 
 interface Job {
@@ -72,10 +88,13 @@ interface JobAttachment {
   createdBy: number;
   createdByName: string;
 }
+
 const JobDetailPage = () => {
   const { id } = useParams();
   const router = useRouter();
-
+  const [commentInput, setCommentInput] = useState<string>("");
+  const [commentAttachments, setCommentAttachments] = useState<File[]>([]);
+  const commentFileInputRef = useRef<HTMLInputElement>(null);
   const userRolesCookie = Cookies.get("userRoles");
   let roles: string[] = [];
   if (userRolesCookie) {
@@ -100,6 +119,10 @@ const JobDetailPage = () => {
   const [commentText, setCommentText] = useState<string>("");
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState<string>("");
+  const [editingCommentAttachments, setEditingCommentAttachments] = useState<
+    File[]
+  >([]);
+  const editingCommentFileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAppContext();
   const token = Cookies.get("accessToken");
 
@@ -264,9 +287,11 @@ const JobDetailPage = () => {
         completedAt: editedJob.completedAt,
         region: editedJob.region,
       };
-
-      formData.append("jobRequest", JSON.stringify(jobRequestPayload));
-
+      const jobRequestJsonString = JSON.stringify(jobRequestPayload);
+      const jobRequestBlob = new Blob([jobRequestJsonString], {
+        type: "application/json",
+      });
+      formData.append("jobRequest", jobRequestBlob, "jobRequest.json");
       newAttachments.forEach((file) => {
         formData.append("attachments", file);
       });
@@ -274,7 +299,7 @@ const JobDetailPage = () => {
       const response = await fetch(`http://localhost:8081/api/jobs/${job.id}`, {
         method: "PUT",
         headers: {
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       });
@@ -300,7 +325,70 @@ const JobDetailPage = () => {
       console.error("Error updating job:", e);
     }
   };
+const handleDeleteCommentAttachment = async (commentId: number, attachmentId: number) => {
+  if (!token || !job?.id) return;
 
+  if (isTokenExpired()) {
+    toast({
+      title: "Session Expired",
+      description: "Your session has expired. Please log in again.",
+      variant: "destructive",
+    });
+    Cookies.remove("token");
+    Cookies.remove("userRoles");
+    router.push("/login");
+    return;
+  }
+
+  if (!window.confirm("Are you sure you want to delete this attachment?")) {
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `http://localhost:8081/api/jobs/${job.id}/comments/${commentId}/attachments/${attachmentId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    setJob((prevJob) => {
+      if (prevJob) {
+        return {
+          ...prevJob,
+          comments: prevJob.comments.map(comment => {
+            if (comment.id === commentId) {
+              return {
+                ...comment,
+                attachments: comment.attachments?.filter(att => att.id !== attachmentId) || []
+              };
+            }
+            return comment;
+          }),
+        };
+      }
+      return prevJob;
+    });
+    toast({
+      title: "Success",
+      description: "Attachment deleted successfully.",
+    });
+  } catch (e: any) {
+    toast({
+      title: "Error",
+      description: `Failed to delete attachment: ${e.message}`,
+      variant: "destructive",
+    });
+    console.error("Error deleting attachment:", e);
+  }
+};
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setNewAttachments(Array.from(e.target.files));
@@ -412,6 +500,14 @@ const JobDetailPage = () => {
     }
   };
 
+  const handleCommentFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (event.target.files) {
+      setCommentAttachments(Array.from(event.target.files));
+    }
+  };
+
   const handleAddComment = async () => {
     if (!token || !job?.id || !commentText.trim()) return;
 
@@ -431,19 +527,28 @@ const JobDetailPage = () => {
     const userName = user?.email;
 
     try {
+      const formData = new FormData();
+      const commentRequestPayload = {
+        body: commentText,
+        name: userEmail || "",
+        email: userEmail || "",
+      };
+      const commentRequestBlob = new Blob(
+        [JSON.stringify(commentRequestPayload)],
+        { type: "application/json" }
+      );
+      formData.append("commentRequest", commentRequestBlob);
+      commentAttachments.forEach((file) => {
+        formData.append("attachments", file);
+      });
       const response = await fetch(
         `http://localhost:8081/api/jobs/${job.id}/comments`,
         {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            body: commentText,
-            email: userEmail,
-            name: userName,
-          }),
+          body: formData,
         }
       );
 
@@ -464,6 +569,10 @@ const JobDetailPage = () => {
         return prevJob;
       });
       setCommentText("");
+      setCommentAttachments([]);
+      if (commentFileInputRef.current) {
+        commentFileInputRef.current.value = "";
+      }
       toast({
         title: "Success",
         description: "Comment added successfully.",
@@ -481,6 +590,15 @@ const JobDetailPage = () => {
   const handleEditComment = (comment: Comment) => {
     setEditingCommentId(comment.id);
     setEditingCommentBody(comment.body);
+    setEditingCommentAttachments([]);
+  };
+
+  const handleEditingCommentFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (event.target.files) {
+      setEditingCommentAttachments(Array.from(event.target.files));
+    }
   };
 
   const handleSaveComment = async (commentId: number) => {
@@ -500,19 +618,30 @@ const JobDetailPage = () => {
     const userName = user?.username;
     const email = user?.email;
     try {
+      const formData = new FormData();
+      const commentRequestPayload = {
+        body: editingCommentBody,
+        email: email,
+        name: userName,
+      };
+      const commentRequestBlob = new Blob(
+        [JSON.stringify(commentRequestPayload)],
+        { type: "application/json" }
+      );
+      formData.append("commentRequest", commentRequestBlob);
+
+      editingCommentAttachments.forEach((file) => {
+        formData.append("attachments", file);
+      });
+
       const response = await fetch(
         `http://localhost:8081/api/jobs/${job.id}/comments/${commentId}`,
         {
           method: "PUT",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            body: editingCommentBody,
-            email: email,
-            name: userName,
-          }),
+          body: formData,
         }
       );
 
@@ -534,6 +663,10 @@ const JobDetailPage = () => {
       });
       setEditingCommentId(null);
       setEditingCommentBody("");
+      setEditingCommentAttachments([]);
+      if (editingCommentFileInputRef.current) {
+        editingCommentFileInputRef.current.value = "";
+      }
       toast({
         title: "Success",
         description: "Comment updated successfully.",
@@ -551,6 +684,10 @@ const JobDetailPage = () => {
   const handleCancelEditComment = () => {
     setEditingCommentId(null);
     setEditingCommentBody("");
+    setEditingCommentAttachments([]);
+    if (editingCommentFileInputRef.current) {
+      editingCommentFileInputRef.current.value = "";
+    }
   };
 
   const handleDeleteComment = async (commentId: number) => {
@@ -642,332 +779,290 @@ const JobDetailPage = () => {
         Job Detail
       </Typography>
 
-      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Requester</div>
-          {isEditing ? (
-            <TextField
-              name="requesterBy"
-              value={editedJob.requesterBy || ""}
-              onChange={handleChange}
-              fullWidth
-              variant="outlined"
-            />
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">
-              {job.requesterBy}
-            </div>
-          )}
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Customer</div>
-          {isEditing ? (
-            <TextField
-              name="customer"
-              value={editedJob.customer || ""}
-              onChange={handleChange}
-              fullWidth
-              variant="outlined"
-            />
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">
-              {job.customer}
-            </div>
-          )}
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Category</div>
-          {isEditing ? (
-            <TextField
-              name="category"
-              value={editedJob.category || ""}
-              onChange={handleChange}
-              fullWidth
-              variant="outlined"
-            />
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">
-              {job.category || "N/A"}
-            </div>
-          )}
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Priority</div>
-          {isEditing ? (
-            <TextField
-              name="priority"
-              value={editedJob.priority || ""}
-              onChange={handleChange}
-              fullWidth
-              variant="outlined"
-            />
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">
-              {job.priority || "N/A"}
-            </div>
-          )}
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">CD</div>
-          {isEditing ? (
-            <Autocomplete
-              options={users}
-              getOptionLabel={(option) => option.name}
-              value={users.find((user) => user.name === editedJob.cd) || null}
-              onChange={handleAutocompleteChange("cd")}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="CD"
-                  variant="outlined"
-                  fullWidth
-                />
-              )}
-            />
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">
-              {job.cd || "N/A"}
-            </div>
-          )}
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Assignees</div>
-          {isEditing ? (
-            <Autocomplete
-              multiple
-              options={users}
-              getOptionLabel={(option) => option.name}
-              value={editedJob.assignees || []}
-              onChange={handleAutocompleteChange("assignees")}
-              filterSelectedOptions
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Assignees"
-                  variant="outlined"
-                  fullWidth
-                />
-              )}
-            />
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">
-              {job.assignees && job.assignees.length > 0
-                ? job.assignees.map((assignee) => assignee.name).join(", ")
-                : "N/A"}
-            </div>
-          )}
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Status</div>
-          {isEditing ? (
-            <FormControl fullWidth variant="outlined">
-              <InputLabel>Status</InputLabel>
-              <Select
-                name="status"
-                value={editedJob.statusId || ""}
-                onChange={handleStatusChange}
-                label="Status"
-              >
-                {statusOptions.map((status) => (
-                  <MenuItem key={status.statusId} value={status.statusId}>
-                    {status.statusName}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">
-              {job.status || "N/A"}
-            </div>
-          )}
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Title</div>
-          {isEditing ? (
-            <TextField
-              name="title"
-              value={editedJob.title || ""}
-              onChange={handleChange}
-              fullWidth
-              variant="outlined"
-            />
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">{job.title}</div>
-          )}
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Due Date</div>
-          {isEditing ? (
-            <TextField
-              name="dueDate"
-              type="datetime-local"
-              value={
-                editedJob.dueDate
-                  ? format(new Date(editedJob.dueDate), "yyyy-MM-dd'T'HH:mm")
-                  : ""
-              }
-              onChange={handleDateChange("dueDate")}
-              fullWidth
-              variant="outlined"
-              InputLabelProps={{ shrink: true }}
-            />
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">
-              {job.dueDate
-                ? format(new Date(job.dueDate), "MMM d, yyyy HH:mm")
-                : "N/A"}
-            </div>
-          )}
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Registered Date</div>
-          <div className="text-gray-700 dark:text-gray-300">
-            {job.createdAt
-              ? format(new Date(job.createdAt), "MMM d, yyyy HH:mm")
-              : "N/A"}
-          </div>
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Completed At</div>
-          {isEditing ? (
-            <TextField
-              name="completedAt"
-              type="datetime-local"
-              value={
-                editedJob.completedAt
-                  ? format(
-                      new Date(editedJob.completedAt),
-                      "yyyy-MM-dd'T'HH:mm"
-                    )
-                  : ""
-              }
-              onChange={handleDateChange("completedAt")}
-              fullWidth
-              variant="outlined"
-              InputLabelProps={{ shrink: true }}
-            />
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">
-              {job.completedAt
-                ? format(new Date(job.completedAt), "MMM d, yyyy HH:mm")
-                : "N/A"}
-            </div>
-          )}
-        </div>
-        <div className="col-span-1">
-          <div className="font-bold text-lg mb-2">Region</div>
-          {isEditing ? (
-            <TextField
-              name="region"
-              value={editedJob.region || ""}
-              onChange={handleChange}
-              fullWidth
-              variant="outlined"
-            />
-          ) : (
-            <div className="text-gray-700 dark:text-gray-300">
-              {job.region || "N/A"}
-            </div>
-          )}
-        </div>
-        <div className="mt-4 col-span-full">
-          <div className="font-bold text-lg mb-2">Description</div>
-          {isEditing ? (
-            <TextField
-              name="description"
-              value={editedJob.description || ""}
-              onChange={handleChange}
-              multiline
-              rows={4}
-              fullWidth
-              variant="outlined"
-            />
-          ) : (
-            <div className="text-gray-800 dark:text-gray-200">
-              {job.description}
-            </div>
-          )}
-        </div>
-        <div className="mt-4 col-span-full">
-          <Typography
-            variant="h6"
-            component="h3"
-            gutterBottom
-            className="mt-4 mb-2"
-          >
-            Attachments ({job.attachments?.length || 0})
-          </Typography>
-          {isEditing ? (
-            <div className="mb-4">
-              <InputLabel htmlFor="attachments-upload">
-                Upload New Attachments
-              </InputLabel>
-              <input
-                type="file"
-                id="attachments-upload"
-                multiple
-                onChange={handleFileChange}
-                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
+      {/* Job Details Card */}
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
+        <Typography
+          variant="h5"
+          component="h2"
+          gutterBottom
+          className="mb-4 text-center"
+        >
+          Job Information
+        </Typography>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Requester</div>
+            {isEditing ? (
+              <TextField
+                name="requesterBy"
+                value={editedJob.requesterBy || ""}
+                onChange={handleChange}
+                fullWidth
+                variant="outlined"
               />
-              {newAttachments.length > 0 && (
-                <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                  Selected files: {newAttachments.map((f) => f.name).join(", ")}
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {job.attachments && job.attachments.length > 0 ? (
-            <ul className="list-disc pl-5 space-y-1">
-              {job.attachments.map((attachment) => (
-                <li
-                  key={attachment.id}
-                  className="flex items-center justify-between text-gray-700 dark:text-gray-300"
+            ) : (
+              <Typography className="text-gray-700 dark:text-gray-300">
+                {job.requesterBy}
+              </Typography>
+            )}
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Customer</div>
+            {isEditing ? (
+              <TextField
+                name="customer"
+                value={editedJob.customer || ""}
+                onChange={handleChange}
+                fullWidth
+                variant="outlined"
+              />
+            ) : (
+              <Typography className="text-gray-700 dark:text-gray-300">
+                {job.customer}
+              </Typography>
+            )}
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Category</div>
+            {isEditing ? (
+              <TextField
+                name="category"
+                value={editedJob.category || ""}
+                onChange={handleChange}
+                fullWidth
+                variant="outlined"
+              />
+            ) : (
+              <Typography className="text-gray-700 dark:text-gray-300">
+                {job.category || "N/A"}
+              </Typography>
+            )}
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Priority</div>
+            {isEditing ? (
+              <TextField
+                name="priority"
+                value={editedJob.priority || ""}
+                onChange={handleChange}
+                fullWidth
+                variant="outlined"
+              />
+            ) : (
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-semibold 
+                ${
+                  job.priority === "High"
+                    ? "bg-red-100 text-red-800"
+                    : job.priority === "Medium"
+                    ? "bg-yellow-100 text-yellow-800"
+                    : job.priority === "Low"
+                    ? "bg-green-100 text-green-800"
+                    : "bg-gray-100 text-gray-800"
+                }
+              `}
+              >
+                {job.priority || "N/A"}
+              </span>
+            )}
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">CD</div>
+            {isEditing ? (
+              <Autocomplete
+                options={users}
+                getOptionLabel={(option) => option.name}
+                value={users.find((user) => user.name === editedJob.cd) || null}
+                onChange={handleAutocompleteChange("cd")}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="CD"
+                    variant="outlined"
+                    fullWidth
+                  />
+                )}
+              />
+            ) : (
+              <Typography className="text-gray-700 dark:text-gray-300">
+                {job.cd || "N/A"}
+              </Typography>
+            )}
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Assignees</div>
+            {isEditing ? (
+              <Autocomplete
+                multiple
+                options={users}
+                getOptionLabel={(option) => option.name}
+                value={editedJob.assignees || []}
+                onChange={handleAutocompleteChange("assignees")}
+                filterSelectedOptions
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Assignees"
+                    variant="outlined"
+                    fullWidth
+                  />
+                )}
+              />
+            ) : (
+              <Typography className="text-gray-700 dark:text-gray-300">
+                {job.assignees && job.assignees.length > 0
+                  ? job.assignees.map((assignee) => assignee.name).join(", ")
+                  : "N/A"}
+              </Typography>
+            )}
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Status</div>
+            {isEditing ? (
+              <FormControl fullWidth variant="outlined">
+                <InputLabel>Status</InputLabel>
+                <Select
+                  name="status"
+                  value={editedJob.statusId || ""}
+                  onChange={handleStatusChange}
+                  label="Status"
                 >
-                  <a
-                    href={`http://localhost:8081/api/files/${attachment.filePath}`} // Hoặc đường dẫn trực tiếp đến file
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline flex items-center"
-                  >
-                    {attachment.fileName} (
-                    {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB)
-                    {/* Biểu tượng file, ví dụ: */}
-                    <svg
-                      className="ml-2 w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      ></path>
-                    </svg>
-                  </a>
-                  {isEditing && (
-                    <Button
-                      onClick={() => handleDeleteAttachment(attachment.id)}
-                      size="sm"
-                      variant="destructive"
-                      className="ml-4"
-                    >
-                      Delete
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Typography className="text-gray-600 dark:text-gray-400">
-              No attachments yet.
+                  {statusOptions.map((status) => (
+                    <MenuItem key={status.statusId} value={status.statusId}>
+                      {status.statusName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            ) : (
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-semibold 
+                ${
+                  job.status === "Open"
+                    ? "bg-blue-100 text-blue-800"
+                    : job.status === "In Progress"
+                    ? "bg-yellow-100 text-yellow-800"
+                    : job.status === "Completed"
+                    ? "bg-green-100 text-green-800"
+                    : "bg-gray-100 text-gray-800"
+                }
+              `}
+              >
+                {job.status || "N/A"}
+              </span>
+            )}
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Title</div>
+            {isEditing ? (
+              <TextField
+                name="title"
+                value={editedJob.title || ""}
+                onChange={handleChange}
+                fullWidth
+                variant="outlined"
+              />
+            ) : (
+              <Typography className="text-gray-700 dark:text-gray-300">
+                {job.title}
+              </Typography>
+            )}
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Due Date</div>
+            {isEditing ? (
+              <TextField
+                name="dueDate"
+                type="datetime-local"
+                value={
+                  editedJob.dueDate
+                    ? format(new Date(editedJob.dueDate), "yyyy-MM-dd'T'HH:mm")
+                    : ""
+                }
+                onChange={handleDateChange("dueDate")}
+                fullWidth
+                variant="outlined"
+                InputLabelProps={{ shrink: true }}
+              />
+            ) : (
+              <Typography className="text-gray-700 dark:text-gray-300">
+                {job.dueDate
+                  ? format(new Date(job.dueDate), "MMM d, yyyy HH:mm")
+                  : "N/A"}
+              </Typography>
+            )}
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Registered Date</div>
+            <Typography className="text-gray-700 dark:text-gray-300">
+              {job.createdAt
+                ? format(new Date(job.createdAt), "MMM d, yyyy HH:mm")
+                : "N/A"}
             </Typography>
-          )}
-        </div>
-        <div className="mt-4 flex space-x-2 col-span-full">
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Completed At</div>
+            {isEditing ? (
+              <TextField
+                name="completedAt"
+                type="datetime-local"
+                value={
+                  editedJob.completedAt
+                    ? format(
+                        new Date(editedJob.completedAt),
+                        "yyyy-MM-dd'T'HH:mm"
+                      )
+                    : ""
+                }
+                onChange={handleDateChange("completedAt")}
+                fullWidth
+                variant="outlined"
+                InputLabelProps={{ shrink: true }}
+              />
+            ) : (
+              <Typography className="text-gray-700 dark:text-gray-300">
+                {job.completedAt
+                  ? format(new Date(job.completedAt), "MMM d, yyyy HH:mm")
+                  : "N/A"}
+              </Typography>
+            )}
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <div className="font-bold text-lg mb-2">Region</div>
+            {isEditing ? (
+              <TextField
+                name="region"
+                value={editedJob.region || ""}
+                onChange={handleChange}
+                fullWidth
+                variant="outlined"
+              />
+            ) : (
+              <Typography className="text-gray-700 dark:text-gray-300">
+                {job.region || "N/A"}
+              </Typography>
+            )}
+          </Grid>
+          <Grid item xs={12}>
+            <div className="font-bold text-lg mb-2">Description</div>
+            {isEditing ? (
+              <TextField
+                name="description"
+                value={editedJob.description || ""}
+                onChange={handleChange}
+                multiline
+                rows={4}
+                fullWidth
+                variant="outlined"
+              />
+            ) : (
+              <Typography className="text-gray-800 dark:text-gray-200">
+                {job.description}
+              </Typography>
+            )}
+          </Grid>
+        </Grid>
+        <div className="mt-6 flex space-x-2 justify-end">
           {canEdit && (
             <>
               <Button onClick={handleEditToggle} variant="outline">
@@ -991,14 +1086,76 @@ const JobDetailPage = () => {
         </div>
       </div>
 
-      {/* Comments Section */}
+      {/* Attachments Card */}
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
+        <Typography variant="h5" component="h2" gutterBottom className="mb-4">
+          Job Attachments ({job.attachments?.length || 0})
+        </Typography>
+        {isEditing ? (
+          <div className="mb-4">
+            <InputLabel htmlFor="attachments-upload">
+              Upload New Attachments
+            </InputLabel>
+            <input
+              type="file"
+              id="attachments-upload"
+              multiple
+              onChange={handleFileChange}
+              className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
+            />
+            {newAttachments.length > 0 && (
+              <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Selected files: {newAttachments.map((f) => f.name).join(", ")}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {job.attachments && job.attachments.length > 0 ? (
+          <ul className="list-disc pl-5 space-y-2">
+            {job.attachments.map((attachment) => (
+              <li
+                key={attachment.id}
+                className="flex items-center justify-between text-gray-700 dark:text-gray-300"
+              >
+                <a
+                  href={`http://localhost:8081/api/files/${attachment.filePath}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline flex items-center"
+                >
+                  {attachment.fileName} (
+                  {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB)
+                  <FileDownloadIcon className="ml-2" fontSize="small" />
+                </a>
+                {isEditing && (
+                  <Button
+                    onClick={() => handleDeleteAttachment(attachment.id)}
+                    size="sm"
+                    variant="destructive"
+                    className="ml-4"
+                  >
+                    Delete
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Typography className="text-gray-600 dark:text-gray-400">
+            No attachments yet.
+          </Typography>
+        )}
+      </div>
+
+      {/* Comments Card */}
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
         <Typography variant="h5" component="h2" gutterBottom className="mb-4">
           Comments ({job.comments?.length || 0})
         </Typography>
 
         {canEdit && (
-          <div className="mb-6">
+          <div className="mb-6 border-b pb-4 border-gray-200 dark:border-gray-700">
             <TextField
               label="Add a comment"
               multiline
@@ -1009,6 +1166,57 @@ const JobDetailPage = () => {
               onChange={(e) => setCommentText(e.target.value)}
               className="mb-2"
             />
+            <input
+              type="file"
+              multiple
+              onChange={handleCommentFileChange}
+              ref={commentFileInputRef}
+              className="mb-4 block text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
+            />
+            {commentAttachments.length > 0 && (
+              <div className="mb-4">
+                <Typography variant="body2" className="text-gray-600 dark:text-gray-300">
+                  Files to upload:
+                </Typography>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+                  {commentAttachments.map((file, index) => {
+                    const isImage = file.type.startsWith("image/");
+                    return (
+                      <li key={index} className="flex flex-col items-start bg-white dark:bg-gray-700 p-2 rounded-md border border-gray-200 dark:border-gray-600">
+                        {isImage && (
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt={file.name}
+                            className="max-w-full h-24 object-contain mb-2 rounded-sm"
+                            style={{ maxWidth: '100%', height: '96px', objectFit: 'contain' }}
+                          />
+                        )}
+                        <div className="flex items-center w-full justify-between">
+                          <span className="text-sm text-gray-700 dark:text-gray-200 break-words">
+                            {file.name}
+                          </span>
+                          <IconButton
+                            onClick={() => {
+                              const newAttachments = [...commentAttachments];
+                              newAttachments.splice(index, 1);
+                              setCommentAttachments(newAttachments);
+                            }}
+                            size="small"
+                            color="error"
+                            aria-label="remove file"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {(file.size / 1024).toFixed(2)} KB
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
             <Button
               onClick={handleAddComment}
               className="bg-green-500 hover:bg-green-600 text-white"
@@ -1018,91 +1226,213 @@ const JobDetailPage = () => {
           </div>
         )}
 
-        {job.comments && job.comments.length > 0 ? (
-          <div className="space-y-4">
-            {job.comments.map((comment) => (
-              <div
-                key={comment.id}
-                className="border-b border-gray-200 dark:border-gray-700 pb-4 last:pb-0 last:border-b-0"
-              >
-                <div className="flex justify-between items-center mb-1">
-                  <Typography
-                    variant="subtitle2"
-                    className="font-bold text-gray-900 dark:text-gray-100"
-                  >
-                    {comment.name}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    className="text-gray-500 dark:text-gray-400"
-                  >
-                    {format(new Date(comment.createdAt), "MMM d, yyyy HH:mm")}
-                  </Typography>
-                </div>
-                {editingCommentId === comment.id ? (
-                  <TextField
-                    value={editingCommentBody}
-                    onChange={(e) => setEditingCommentBody(e.target.value)}
-                    multiline
-                    fullWidth
-                    variant="outlined"
-                    className="mb-2"
-                  />
-                ) : (
-                  <Typography
-                    variant="body1"
-                    className="text-gray-800 dark:text-gray-200"
-                  >
-                    {comment.body}
-                  </Typography>
-                )}
-                {canEdit && (
-                  <div className="mt-2 space-x-2">
-                    {editingCommentId === comment.id ? (
-                      <>
-                        <Button
-                          onClick={() => handleSaveComment(comment.id)}
-                          size="sm"
-                          className="bg-blue-500 hover:bg-blue-600 text-white"
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          onClick={handleCancelEditComment}
-                          size="sm"
-                          variant="outline"
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          onClick={() => handleEditComment(comment)}
-                          size="sm"
-                          variant="outline"
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          onClick={() => handleDeleteComment(comment.id)}
-                          size="sm"
-                          variant="destructive"
-                        >
-                          Delete
-                        </Button>
-                      </>
-                    )}
+        <div className="mt-6 space-y-6">
+          {job.comments.length > 0 ? (
+            <>
+              {job.comments.map((comment) => (
+                <div
+                  key={comment.id}
+                  className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow-sm"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <Typography
+                      variant="subtitle1"
+                      className="font-bold text-gray-900 dark:text-gray-100"
+                    >
+                      {comment.name} ({comment.email})
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      className="text-gray-500 dark:text-gray-400"
+                    >
+                      {format(new Date(comment.createdAt), "MMM d, yyyy HH:mm")}
+                    </Typography>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <Typography className="text-gray-600 dark:text-gray-400">
-            No comments yet.
-          </Typography>
-        )}
+                  {editingCommentId === comment.id ? (
+                    <>
+                      <TextField
+                        value={editingCommentBody}
+                        onChange={(e) => setEditingCommentBody(e.target.value)}
+                        multiline
+                        fullWidth
+                        variant="outlined"
+                        className="mb-2"
+                      />
+                      <input
+                        type="file"
+                        multiple
+                        onChange={handleEditingCommentFileChange}
+                        ref={editingCommentFileInputRef}
+                        className="mb-4 block text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
+                      />
+                      {editingCommentAttachments.length > 0 && (
+                        <div className="mb-4">
+                          <Typography
+                            variant="body2"
+                            className="text-gray-600 dark:text-gray-300"
+                          >
+                            Files to upload:
+                          </Typography>
+                          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+                            {editingCommentAttachments.map((file, index) => {
+                              const isImage = file.type.startsWith("image/");
+                              return (
+                                <li key={index} className="flex flex-col items-start bg-white dark:bg-gray-700 p-2 rounded-md border border-gray-200 dark:border-gray-600">
+                                  {isImage && (
+                                    <img
+                                      src={URL.createObjectURL(file)}
+                                      alt={file.name}
+                                      className="max-w-full h-24 object-contain mb-2 rounded-sm"
+                                      style={{ maxWidth: '100%', height: '96px', objectFit: 'contain' }}
+                                    />
+                                  )}
+                                  <div className="flex items-center w-full justify-between">
+                                    <span className="text-sm text-gray-700 dark:text-gray-200 break-words">
+                                      {file.name}
+                                    </span>
+                                    <IconButton
+                                      onClick={() => {
+                                        const newAttachments = [...editingCommentAttachments];
+                                        newAttachments.splice(index, 1);
+                                        setEditingCommentAttachments(newAttachments);
+                                      }}
+                                      size="small"
+                                      color="error"
+                                      aria-label="remove file"
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </div>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    {(file.size / 1024).toFixed(2)} KB
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <Typography
+                      variant="body1"
+                      className="text-gray-800 dark:text-gray-200"
+                    >
+                      {comment.body}
+                    </Typography>
+                  )}
+                  {comment.attachments && comment.attachments.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                      <Typography
+                        variant="subtitle2"
+                        className="text-gray-600 dark:text-gray-400 mb-1"
+                      >
+                        Attachments:
+                      </Typography>
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                        {comment.attachments.map((attachment) => {
+                          const isImage =
+                            attachment.fileType.startsWith("image/");
+                          return (
+                            <li
+                              key={attachment.id}
+                              className="flex flex-col items-start bg-white dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-600"
+                            >
+                              {isImage && (
+                                <img
+                                  src={`http://localhost:8081/api/files/${attachment.filePath}`}
+                                  alt={attachment.fileName}
+                                  className="max-w-full h-24 object-contain mb-2 rounded-sm"
+                                  style={{
+                                    maxWidth: "100%",
+                                    height: "96px",
+                                    objectFit: "contain",
+                                  }}
+                                />
+                              )}
+                              <div className="flex items-center w-full justify-between">
+                                <a
+                                  href={`http://localhost:8081/api/files/${attachment.filePath}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-500 hover:underline flex items-center break-words"
+                                >
+                                  {attachment.fileName}
+                                  <FileDownloadIcon
+                                    className="ml-1"
+                                    fontSize="small"
+                                  />
+                                </a>
+                                {canEdit && (
+                                  <IconButton
+                                    onClick={() => handleDeleteCommentAttachment(comment.id, attachment.id)}
+                                    size="small"
+                                    color="error"
+                                    aria-label="delete attachment"
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                )}
+                              </div>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {(attachment.fileSize / 1024).toFixed(2)} KB
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+                  {canEdit && (
+                    <div className="mt-3 flex justify-end space-x-2">
+                      {editingCommentId === comment.id ? (
+                        <>
+                          <Button
+                            onClick={() => handleSaveComment(comment.id)}
+                            size="sm"
+                            className="bg-blue-500 hover:bg-blue-600 text-white"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            onClick={handleCancelEditComment}
+                            size="sm"
+                            variant="outline"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <IconButton
+                            onClick={() => handleEditComment(comment)}
+                            size="small"
+                            color="primary"
+                            aria-label="edit comment"
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            onClick={() => handleDeleteComment(comment.id)}
+                            size="small"
+                            color="error"
+                            aria-label="delete comment"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          ) : (
+            <Typography className="text-gray-600 dark:text-gray-400">
+              No comments yet.
+            </Typography>
+          )}
+        </div>
       </div>
     </div>
   );

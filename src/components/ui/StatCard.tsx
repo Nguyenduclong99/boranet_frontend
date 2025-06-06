@@ -4,20 +4,20 @@ import { Paper, Typography, Box } from '@mui/material';
 interface StatCardProps {
     title: string;
     value: number;
-    color: string; // Allow any color string
-    onClick?: () => void; // Optional onClick handler
+    color: string; 
+    onClick?: () => void; 
 }
 
 const StatCard = ({ title, value, color, onClick }: StatCardProps) => {
     return (
         <Paper
             sx={{
-                p: 1, // Reduced padding
+                p: 1, 
                 textAlign: 'center',
-                backgroundColor: color, // Set background color
-                color: 'white', // Text color always white
-                cursor: onClick ? 'pointer' : 'default', // Add pointer if clickable
-                '&:hover': onClick ? { opacity: 0.8 } : {}, // Slight opacity change on hover
+                backgroundColor: color, 
+                color: 'white',
+                cursor: onClick ? 'pointer' : 'default',
+                '&:hover': onClick ? { opacity: 0.8 } : {},
             }}
             onClick={onClick}
         >

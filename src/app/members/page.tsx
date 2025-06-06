@@ -337,7 +337,7 @@ const EmployeesPage = () => {
         contract: formValues.contract,
         status: formValues.status,
         level: formValues.level,
-        auth: Number(formValues.auth), // Ensure auth is a number
+        auth: Number(formValues.auth),
       };
 
       const updatedUser = await updateUser(
@@ -545,7 +545,7 @@ const EmployeesPage = () => {
                 label="Join Date"
                 value={formValues.joinDate ? dayjs(formValues.joinDate) : null}
                 onChange={(date) => handleDateChange("joinDate", date)}
-                format="YYYY-MM-DD" // Use YYYY-MM-DD for consistency with backend
+                format="YYYY-MM-DD"
                 slotProps={{ textField: { fullWidth: true, required: true } }}
               />
             </Grid>
@@ -556,7 +556,7 @@ const EmployeesPage = () => {
                   formValues.startDate ? dayjs(formValues.startDate) : null
                 }
                 onChange={(date) => handleDateChange("startDate", date)}
-                format="YYYY-MM-DD" // Use YYYY-MM-DD for consistency with backend
+                format="YYYY-MM-DD"
                 slotProps={{ textField: { fullWidth: true, required: true } }}
               />
             </Grid>
@@ -615,12 +615,12 @@ const EmployeesPage = () => {
               <TextField
                 label="Auth Level"
                 name="auth"
-                type="number" // Set type to number for numeric input
+                type="number" 
                 value={formValues.auth === undefined ? "" : formValues.auth}
-                onChange={handleFormChange} // Use handleFormChange for text fields
+                onChange={handleFormChange}
                 fullWidth
                 required
-                inputProps={{ min: 0 }} // Optional: Add min value constraint
+                inputProps={{ min: 0 }}
               />
             </Grid>
           </Grid>
@@ -628,7 +628,6 @@ const EmployeesPage = () => {
       );
     }
 
-    // Display mode content
     return (
       <Grid container spacing={2}>
         <Grid item xs={12}>

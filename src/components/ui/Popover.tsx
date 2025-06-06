@@ -6,9 +6,9 @@ const Popover = ({
   children,
   content,
   className,
-  trigger = 'click', // 'click' | 'hover'
-  placement = 'bottom', // 'top' | 'bottom' | 'left' | 'right'
-  offset = 8, // khoảng cách giữa popover và trigger
+  trigger = 'click',
+  placement = 'bottom',
+  offset = 8,
 }: {
   children: React.ReactNode;
   content: React.ReactNode;
@@ -58,7 +58,6 @@ const Popover = ({
     setIsOpen(prev => !prev);
   }, []);
 
-  // Close popover when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -81,7 +80,6 @@ const Popover = ({
     };
   }, [isOpen, handleClose]);
 
-  // Tính toán vị trí của popover
   const getPopoverPosition = useCallback(() => {
     if (!containerRef.current || !contentRef.current) {
       return { top: 0, left: 0 };
@@ -114,7 +112,6 @@ const Popover = ({
         left = triggerRect.left + triggerRect.width / 2 - contentRect.width / 2;
     }
 
-    // Đảm bảo popover không bị tràn ra ngoài màn hình (tối giản)
     if (left < 0) left = 10;
     if (top < 0) top = 10;
 

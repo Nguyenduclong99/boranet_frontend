@@ -1,4 +1,5 @@
 'use client'
+
 import { isClient } from '@/lib/http'
 import { AccountResType } from '@/schemaValidations/account.schema'
 import {
@@ -8,10 +9,18 @@ import {
     useEffect,
     useState
 } from 'react'
-import Cookies from 'js-cookie'; // Import Cookies
+import Cookies from 'js-cookie';
+import { jwtDecode } from 'jwt-decode';
 
 type User = AccountResType['data']
 type Role = string[];
+
+interface JwtPayload {
+    roles: string[];
+    sub: string;
+    username?: string;
+    title?: string;
+}
 
 interface AppContextType {
     user: User | null;
@@ -19,8 +28,8 @@ interface AppContextType {
     roles: Role | null;
     setRoles: (roles: Role | null) => void;
     isAuthenticated: boolean;
-    currentUser: User | null; // Added currentUser to the type
-    logout: () => void; // Added logout to the type
+    currentUser: User | null;
+    logout: () => void;
 }
 
 const AppContext = createContext<AppContextType>({
@@ -29,8 +38,8 @@ const AppContext = createContext<AppContextType>({
     roles: null,
     setRoles: () => { },
     isAuthenticated: false,
-    currentUser: null, // Default value for currentUser
-    logout: () => { }, // Default value for logout
+    currentUser: null,
+    logout: () => { },
 })
 
 export const useAppContext = () => {
@@ -46,25 +55,23 @@ export default function AppProvider({
 }: {
     children: React.ReactNode
 }) {
-    const [user, setUserState] = useState<User | null>(() => {
-        if (isClient()) {
-            const _user = localStorage.getItem('user')
-            return _user ? JSON.parse(_user) : null
-        }
-        return null
-    })
+    const [user, setUserState] = useState<User | null>(null);
     const [roles, setRolesState] = useState<Role | null>(null);
-    const isAuthenticated = Boolean(user)
+    const isAuthenticated = Boolean(user);
 
     const setUser = useCallback(
         (user: User | null) => {
-            setUserState(user)
+            setUserState(user);
             if (isClient()) {
-                localStorage.setItem('user', JSON.stringify(user))
+                if (user) {
+                    localStorage.setItem('user', JSON.stringify(user));
+                } else {
+                    localStorage.removeItem('user');
+                }
             }
         },
         [setUserState]
-    )
+    );
 
     const setRoles = useCallback(
         (roles: Role | null) => {
@@ -73,27 +80,66 @@ export default function AppProvider({
         [setRolesState]
     );
 
-    // Implement the logout function
     const logout = useCallback(() => {
-        // Clear user data from state and local storage
         setUserState(null);
         setRolesState(null);
-        if (isClient()) { // Ensure localStorage and Cookies are only accessed on the client side
+        if (isClient()) {
             localStorage.removeItem('user');
             Cookies.remove('accessToken');
-            Cookies.remove('accessTokenExpiresAt'); // Assuming you also store this
+            Cookies.remove('accessTokenExpiresAt');
+            Cookies.remove('refreshToken');
+            Cookies.remove('userRoles');
         }
-        // You might want to redirect the user to the login page here
-        // router.push('/login'); // If you have access to useRouter here
     }, [setUserState, setRolesState]);
 
-
     useEffect(() => {
-        if (isClient()) { // Ensure localStorage is only accessed on the client side
-            const _user = localStorage.getItem('user')
-            setUserState(_user ? JSON.parse(_user) : null)
+        if (isClient()) {
+            const accessToken = Cookies.get('accessToken');
+            const storedUser = localStorage.getItem('user');
+
+            if (accessToken) {
+                try {
+                    const decodedToken = jwtDecode<JwtPayload>(accessToken);
+                    if (decodedToken && decodedToken.sub) {
+                        const newUser: User = {
+                            id: decodedToken.sub,
+                            email: decodedToken.sub,
+                            username: decodedToken.username || decodedToken.sub,
+                            title: decodedToken.roles.includes("ROLE_ADMIN") ? "Admin" : "User",
+                            ... (storedUser ? JSON.parse(storedUser) : {})
+                        };
+                        setUserState(newUser);
+                        setRolesState(decodedToken.roles);
+                    } else {
+                        setUserState(null);
+                        setRolesState(null);
+                        Cookies.remove('accessToken');
+                        Cookies.remove('accessTokenExpiresAt');
+                        Cookies.remove('refreshToken');
+                        Cookies.remove('userRoles');
+                        localStorage.removeItem('user');
+                    }
+                } catch (error) {
+                    console.error("Failed to decode token:", error);
+                    setUserState(null);
+                    setRolesState(null);
+                    Cookies.remove('accessToken');
+                    Cookies.remove('accessTokenExpiresAt');
+                    Cookies.remove('refreshToken');
+                    Cookies.remove('userRoles');
+                    localStorage.removeItem('user');
+                }
+            } else {
+                setUserState(null);
+                setRolesState(null);
+                Cookies.remove('accessToken');
+                Cookies.remove('accessTokenExpiresAt');
+                Cookies.remove('refreshToken');
+                Cookies.remove('userRoles');
+                localStorage.removeItem('user');
+            }
         }
-    }, []) // Empty dependency array means this runs once on mount
+    }, []);
 
     return (
         <AppContext.Provider
@@ -103,8 +149,8 @@ export default function AppProvider({
                 roles,
                 setRoles,
                 isAuthenticated,
-                currentUser: user, // Provide currentUser as the current user state
-                logout // Provide the logout function
+                currentUser: user,
+                logout
             }}
         >
             {children}

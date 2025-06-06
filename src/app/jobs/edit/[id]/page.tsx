@@ -21,12 +21,12 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
-// Interfaces for data structures
 interface User {
   id: number;
   username: string;
   name: string;
   email: string;
+  title: string;
 }
 
 interface Job {
@@ -64,8 +64,6 @@ interface JobPriority {
 const JobEditPage = () => {
   const { id } = useParams();
   const router = useRouter();
-
-  // User role check
   const userRolesCookie = Cookies.get("userRoles");
   let roles: string[] = [];
   if (userRolesCookie) {
@@ -89,7 +87,6 @@ const JobEditPage = () => {
     }
   }, [router]);
 
-  // State for job data and form fields
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +105,6 @@ const JobEditPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<User[]>([]);
 
-  // API URLs
   const API_JOBS_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL
     ? `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/api/jobs`
     : "http://localhost:8081/api/jobs";
@@ -121,13 +117,11 @@ const JobEditPage = () => {
     ? `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/api/users/getList`
     : "http://localhost:8081/api/users/getList";
 
-  // Fetch job details, status options, and users on component mount
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        // Fetch Job Details
         const jobResponse = await fetch(`${API_JOBS_URL}/${id}`, {
           headers: {
             "Content-Type": "application/json",
@@ -152,7 +146,6 @@ const JobEditPage = () => {
         );
         setSelectedAssignees(jobData.assignees || []);
 
-        // Fetch Status Options
         const statusResponse = await fetch(API_STATUSES_URL, {
           headers: {
             "Content-Type": "application/json",
@@ -166,7 +159,6 @@ const JobEditPage = () => {
           console.error("Failed to fetch status options");
         }
 
-        // Fetch Users List (only if admin, but fetching for dropdown regardless for now)
         const usersResponse = await fetch(API_USERS_URL, {
           headers: {
             "Content-Type": "application/json",
@@ -207,7 +199,7 @@ const JobEditPage = () => {
         title: isAdmin ? editTitle : job.title,
         description: isAdmin ? editDescription : job.description,
         customer: isAdmin ? editCustomer : job.customer,
-        status: editStatus, // Both admin and user can change status
+        status: editStatus, 
         dueDate:
           isAdmin && editDueDate
             ? format(editDueDate, "yyyy-MM-dd'T'HH:mm:ss")
@@ -247,7 +239,7 @@ const JobEditPage = () => {
         title: "Success",
         description: "Job updated successfully.",
       });
-      router.push(`/jobs/${job.id}`); // Redirect back to detail page
+      router.push(`/jobs/${job.id}`); 
     } catch (err: any) {
       console.error("Error updating job:", err);
       setError(err.message || "Could not update job.");
@@ -262,7 +254,7 @@ const JobEditPage = () => {
   };
 
   const handleCancelClick = () => {
-    router.push(`/jobs/${job?.id}`); // Go back to the detail page
+    router.push(`/jobs/${job?.id}`); 
   };
 
   if (loading) {
@@ -353,7 +345,7 @@ const JobEditPage = () => {
                   value={editStatus}
                   onChange={(e) => setEditStatus(Number(e.target.value))}
                   label="Status"
-                  disabled={!isAdmin && !roles.includes("ROLE_USER")} // Only allow status change for ADMIN and USER
+                  disabled={!isAdmin && !roles.includes("ROLE_USER")}
                 >
                   {statusOptions.map((option) => (
                     <MenuItem key={option.statusId} value={option.statusId}>

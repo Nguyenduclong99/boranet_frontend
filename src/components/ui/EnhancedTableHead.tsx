@@ -8,13 +8,13 @@ import {
     Typography,
 } from '@mui/material';
 import { visuallyHidden } from '@mui/utils';
-import { Key } from 'react'; // Import the Key type
+import { Key } from 'react';
 
 interface EnhancedTableHeadProps<T> {
     onRequestSort: (property: keyof T) => (event: React.MouseEvent<unknown>) => void;
     order: 'asc' | 'desc';
     orderBy: keyof T;
-    headCells: { id: keyof T & (string | number); label: string }[]; // Explicitly type 'id'
+    headCells: { id: keyof T & (string | number); label: string }[]; 
 }
 
 const EnhancedTableHead = <T extends object>(props: EnhancedTableHeadProps<T>) => {
@@ -28,7 +28,7 @@ const EnhancedTableHead = <T extends object>(props: EnhancedTableHeadProps<T>) =
             <TableRow>
                 {headCells.map((headCell) => (
                     <TableCell
-                        key={headCell.id as Key} // Explicitly cast 'id' to Key
+                        key={headCell.id as Key}
                         sortDirection={orderBy === headCell.id ? order : false}
                         sx={{
                             padding: '8px 16px',

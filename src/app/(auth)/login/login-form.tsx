@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { LoginBody, LoginBodyType } from "@/schemaValidations/auth.schema";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
-import { handleErrorApi } from "@/lib/utils";
 import { useState } from "react";
 import { useAppContext } from "@/app/app-provider";
 import { jwtDecode, JwtPayload } from "jwt-decode";

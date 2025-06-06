@@ -21,6 +21,7 @@ import {
   Radio,
   RadioGroup,
   Button,
+  TextField,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import DatePicker from "react-datepicker";
@@ -41,7 +42,6 @@ interface User {
   title: string;
   employmentType: string;
   auth: string;
-  website: string;
   roles: Array<{
     id: number;
     name: string;
@@ -320,13 +320,12 @@ const WorkOrderDashboard = () => {
           </Grid>
           <Grid item>
             <DatePicker
-              label="To Date"
-              value={toDate}
-              onChange={(newValue) => setToDate(newValue)}
-              slotProps={{
-                textField: (params) => <TextField {...params} size="small" />,
-              }}
-              format="DD/MM/YYYY" // Định dạng hiển thị
+              showIcon
+              selected={toDate}
+              onChange={(newValue: Date | null) => setToDate(newValue)}
+              dateFormat="dd/MM/yyyy"
+              placeholderText="To Date"
+              size="small"
             />
           </Grid>
           <Grid item>
@@ -497,6 +496,13 @@ const WorkOrderDashboard = () => {
                 />
               </RadioGroup>
             </FormControl>
+            <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => router.push("/jobs/register")}
+                >
+                    Create new
+                </Button>
           </Grid>
         </Paper>
 
@@ -509,6 +515,12 @@ const WorkOrderDashboard = () => {
                   orderBy={orderBy}
                   onRequestSort={handleRequestSort}
                   headCells={tableHeadCells}
+                  sx={{
+                    backgroundColor: "black",
+                    "& .MuiTableCell-root": {
+                      color: "white",
+                    },
+                  }}
                 />
                 <TableBody>
                   {filteredWorkOrders.map((row) => (
@@ -576,6 +588,7 @@ const WorkOrderDashboard = () => {
                 </TableBody>
               </Table>
             </TableContainer>
+            
           </Paper>
         </Grid>
       </Container>

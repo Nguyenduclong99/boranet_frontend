@@ -15,7 +15,7 @@ export default function ButtonLogout() {
 
     const handleLogout = async (token: string) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/logout`, { // Use the full URL
+            const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`

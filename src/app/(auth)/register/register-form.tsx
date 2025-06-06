@@ -36,7 +36,6 @@ const RegisterForm = () => {
     }
   })
 
-  // 2. Define a submit handler.
   async function onSubmit(values: RegisterBodyType) {
     if (loading) return
     setLoading(true)

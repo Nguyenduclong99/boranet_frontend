@@ -180,11 +180,11 @@ const WorkOverDuePage: React.FC = () => {
             ) : (
               <>
                 <TableContainer>
-                  <Table size={isSmallScreen ? "small" : "medium"}>
-                    <TableHead>
+                  <Table size={isSmallScreen ? "small" : "medium"} aria-label="job order table">
+                    <TableHead sx={{ backgroundColor: "black" }}>
                       <TableRow>
                         {columns.map((column: any) => (
-                          <TableCell key={column.key}>
+                          <TableCell key={column.key} sx={{ color: "white" }}>
                             {column.header}
                           </TableCell>
                         ))}

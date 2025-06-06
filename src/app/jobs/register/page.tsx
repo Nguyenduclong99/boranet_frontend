@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import { isTokenExpired } from "@/lib/utils";
 import { useAppContext } from "@/app/app-provider";
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import {
   Box,
   Typography,
@@ -21,41 +21,44 @@ import {
   Select,
   CircularProgress,
   Alert,
+  Divider,
+  Fade,
 } from "@mui/material";
-import { styled } from '@mui/material/styles';
+import { styled, useTheme } from "@mui/material/styles";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import EventIcon from "@mui/icons-material/Event";
-import { Dayjs } from "dayjs";
+import ClearIcon from "@mui/icons-material/Clear";
+import dayjs, { Dayjs } from "dayjs";
 
 const API_BASE_URL = "http://localhost:8081/api";
-const VisuallyHiddenInput = styled('input')({
-  clip: 'rect(0 0 0 0)',
-  clipPath: 'inset(50%)',
+
+const VisuallyHiddenInput = styled("input")({
+  clip: "rect(0 0 0 0)",
+  clipPath: "inset(50%)",
   height: 1,
-  overflow: 'hidden',
-  position: 'absolute',
+  overflow: "hidden",
+  position: "absolute",
   bottom: 0,
   left: 0,
-  whiteSpace: 'nowrap',
+  whiteSpace: "nowrap",
   width: 1,
 });
-// Define a type for formData state
+
 interface FormDataState {
   title: string;
   customer: string;
-  category: string;
+  category: string; // This will be the category ID (string from select, convert to Long for backend)
   priority: string;
-  cd: string;
-  assignees: string;
-  dueDate: Dayjs | null; // Changed to Dayjs type for MUI DatePicker
+  cd: string; // This will be the CD user ID (string from input, convert to Long for backend)
+  assignees: string; // This will be the assignee user ID (string from select, convert to Long for backend)
+  dueDate: Dayjs | null;
   region: string;
   description: string;
-  attachments: string; // Changed to string for file name input
+  attachments: File[];
 }
 
-// Define a type for form errors
 interface FormErrors {
   title?: string;
   customer?: string;
@@ -65,21 +68,25 @@ interface FormErrors {
   assignees?: string;
   dueDate?: string;
   region?: string;
-  attachments?: string; // Added for attachment field
-  [key: string]: string | undefined; // Allow string indexing for dynamic error keys
+  attachments?: string;
+  [key: string]: string | undefined;
 }
 
 const JobRegisterPage = () => {
   const router = useRouter();
   const { isAuthenticated, currentUser, logout } = useAppContext();
+  const theme = useTheme();
 
-  const [categories, setCategories] = useState<any[]>([]); // Added type for categories
-  const [assignees, setAssignees] = useState<any[]>([]); // Added type for assignees
+  const [categories, setCategories] = useState<any[]>([]);
+  const [assignees, setAssignees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null); // Explicitly type error state
+  const [error, setError] = useState<string | null>(null);
+  const [submissionStatus, setSubmissionStatus] = useState<{
+    message: string | null;
+    severity: "success" | "error" | "info" | undefined;
+  }>({ message: null, severity: undefined });
 
   const [formData, setFormData] = useState<FormDataState>({
-    // Apply FormDataState type
     title: "",
     customer: "",
     category: "",
@@ -89,10 +96,10 @@ const JobRegisterPage = () => {
     dueDate: null,
     region: "",
     description: "",
-    attachments: "", // Default to empty string
+    attachments: [],
   });
 
-  const [formErrors, setFormErrors] = useState<FormErrors>({}); // Apply FormErrors type
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
 
   useEffect(() => {
     const checkAuthAndFetchData = async () => {
@@ -112,33 +119,30 @@ const JobRegisterPage = () => {
       };
 
       try {
-        const categoriesResponse = await fetch(`${API_BASE_URL}/categories`, {
-          headers,
-        });
-        if (
-          categoriesResponse.status === 401 ||
-          categoriesResponse.status === 403
-        ) {
-          throw new Error("Unauthorized access. Please log in again.");
+        const [categoriesResponse, assigneesResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/categories`, { headers }),
+          fetch(`${API_BASE_URL}/users/getList`, { headers }),
+        ]);
+
+        if (!categoriesResponse.ok) {
+          if (categoriesResponse.status === 401 || categoriesResponse.status === 403) {
+            throw new Error("Unauthorized access for categories. Please log in again.");
+          }
+          throw new Error(`Failed to load categories: ${categoriesResponse.statusText}`);
         }
         const categoriesData = await categoriesResponse.json();
         setCategories(categoriesData);
 
-        const assigneesResponse = await fetch(`${API_BASE_URL}/users/getList`, {
-          headers,
-        });
-        if (
-          assigneesResponse.status === 401 ||
-          assigneesResponse.status === 403
-        ) {
-          throw new Error("Unauthorized access. Please log in again.");
+        if (!assigneesResponse.ok) {
+          if (assigneesResponse.status === 401 || assigneesResponse.status === 403) {
+            throw new Error("Unauthorized access for assignees. Please log in again.");
+          }
+          throw new Error(`Failed to load assignees: ${assigneesResponse.statusText}`);
         }
         const assigneesData = await assigneesResponse.json();
         setAssignees(assigneesData);
       } catch (err: unknown) {
-        // Explicitly type err as unknown
         console.error("Error fetching data:", err);
-        // Safely access error message
         setError(
           err instanceof Error
             ? err.message
@@ -156,7 +160,6 @@ const JobRegisterPage = () => {
     checkAuthAndFetchData();
   }, [router, logout]);
 
-  // Combined handleChange for all text fields and select
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | { name?: string; value: unknown }
@@ -164,72 +167,173 @@ const JobRegisterPage = () => {
   ) => {
     const { name, value } = e.target;
     setFormData((prev: FormDataState) => ({
-      // Explicitly type prev
       ...prev,
       [name as string]: value,
     }));
-    // Check if name is a key in formErrors before accessing
     if (name && formErrors[name]) {
-      setFormErrors((prev: FormErrors) => ({ ...prev, [name]: "" })); // Explicitly type prev
+      setFormErrors((prev: FormErrors) => ({ ...prev, [name]: "" }));
     }
   };
 
   const handleDueDateChange = (date: Dayjs | null) => {
-    // Explicitly type date as Dayjs | null
     setFormData((prev: FormDataState) => ({
-      // Explicitly type prev
       ...prev,
       dueDate: date,
     }));
     if (formErrors.dueDate) {
-      setFormErrors((prev: FormErrors) => ({ ...prev, dueDate: "" })); // Explicitly type prev
+      setFormErrors((prev: FormErrors) => ({ ...prev, dueDate: "" }));
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    const newErrors: FormErrors = {};
+
+    if (files.length > 5) {
+      newErrors.attachments = "You can upload a maximum of 5 files.";
+    } else {
+      const oversizedFiles = files.filter(file => file.size > 10 * 1024 * 1024);
+      if (oversizedFiles.length > 0) {
+        newErrors.attachments = "Some files exceed the 10MB limit.";
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setFormErrors(prev => ({ ...prev, ...newErrors }));
+      setFormData(prev => ({ ...prev, attachments: [] }));
+    } else {
+      setFormData(prev => ({ ...prev, attachments: files }));
+      setFormErrors(prev => ({ ...prev, attachments: "" }));
     }
   };
 
   const validateForm = () => {
-    const errors: FormErrors = {}; // Use the defined FormErrors type
+    const errors: FormErrors = {};
     if (!formData.title.trim()) {
-      errors.title = "Title is required";
+      errors.title = "Job Title is required.";
     }
     if (!formData.customer.trim()) {
-      errors.customer = "Customer is required";
+      errors.customer = "Customer Name is required.";
     }
     if (!formData.category) {
-      errors.category = "Category is required";
+      errors.category = "Category is required.";
     }
     if (!formData.priority.trim()) {
-      errors.priority = "Priority is required";
+      errors.priority = "Priority is required.";
     }
     if (!formData.cd.trim()) {
-      errors.cd = "CD is required";
+      errors.cd = "Contact Department is required.";
     }
     if (!formData.assignees) {
-      errors.assignees = "Assignee is required";
+      errors.assignees = "Assignee is required.";
     }
     if (!formData.dueDate) {
-      // Check if dueDate is null or invalid
-      errors.dueDate = "Due Date is required";
+      errors.dueDate = "Due Date is required.";
     }
     if (!formData.region.trim()) {
-      errors.region = "Region is required";
+      errors.region = "Region is required.";
     }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setSubmissionStatus({ message: null, severity: undefined });
     if (validateForm()) {
-      const dataToSend = {
-        ...formData,
-        // Convert Dayjs object to ISO string
-        dueDate: formData.dueDate ? formData.dueDate.toISOString() : null,
+      setLoading(true);
+      const accessToken = Cookies.get("accessToken");
+
+      if (!accessToken) {
+        setSubmissionStatus({ message: "Authentication token missing.", severity: "error" });
+        setLoading(false);
+        logout();
+        router.push("/login");
+        return;
+      }
+
+      const formDataToSend = new FormData();
+
+      // Prepare JobRequest JSON
+      const jobRequest = {
+        title: formData.title,
+        description: formData.description,
+        dueDate: formData.dueDate ? formData.dueDate.format("YYYY-MM-DDTHH:mm:ss") : null,
+        status: 1, // Default status, assuming 1 is PENDING
+        assigneeIds: formData.assignees ? [parseInt(formData.assignees, 10)] : [],
+        customer: formData.customer,
+        category: formData.category, // Backend might expect category ID here, ensure it's a Long if needed
+        priority: formData.priority,
+        cdId: formData.cd ? parseInt(formData.cd, 10) : null,
+        completedAt: null, // Not used in registration
+        region: formData.region,
       };
-      console.log("Form data to send:", dataToSend);
-      // Here you would typically send dataToSend to your API
-      alert("Form submitted successfully! Check console for data.");
+
+      // Append jobRequest as a JSON string with its own Content-Type
+      const jobRequestBlob = new Blob([JSON.stringify(jobRequest)], { type: "application/json" });
+      formDataToSend.append("jobRequest", jobRequestBlob, "jobRequest.json");
+
+      // Append attachments
+      formData.attachments.forEach((file) => {
+        formDataToSend.append("attachments", file);
+      });
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/jobs`, {
+          method: "POST",
+          headers: {
+            // Do NOT set Content-Type header here for FormData.
+            // Fetch API will set it automatically with the correct boundary.
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formDataToSend,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          let errorMessage = `Failed to register job order: ${errorData.message || response.statusText}`;
+          if (response.status === 401 || response.status === 403) {
+            errorMessage = "Unauthorized. Please log in again.";
+            logout();
+            router.push("/login");
+          }
+          throw new Error(errorMessage);
+        }
+
+        const responseData = await response.json(); // Assuming API returns a success message or object
+        console.log("Job order registered successfully:", responseData);
+
+        setSubmissionStatus({
+          message: "Job order registered successfully!",
+          severity: "success",
+        });
+        setFormData({
+          title: "",
+          customer: "",
+          category: "",
+          priority: "",
+          cd: "",
+          assignees: "",
+          dueDate: null,
+          region: "",
+          description: "",
+          attachments: [],
+        });
+        setFormErrors({}); // Clear errors after successful submission
+      } catch (submitError: any) {
+        console.error("Submission error:", submitError);
+        setSubmissionStatus({
+          message: `Failed to register job order: ${submitError.message || "Unknown error"}`,
+          severity: "error",
+        });
+      } finally {
+        setLoading(false);
+      }
     } else {
-      alert("Please fill in all required fields.");
+      setSubmissionStatus({
+        message: "Please correct the errors in the form.",
+        severity: "error",
+      });
     }
   };
 
@@ -237,18 +341,22 @@ const JobRegisterPage = () => {
     router.push("/jobs/order-list");
   };
 
-  if (loading) {
+  if (loading && !submissionStatus.message) {
     return (
       <Box
         sx={{
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          height: "100vh",
+          minHeight: "100vh",
+          flexDirection: "column",
+          bgcolor: theme.palette.background.default,
+          color: theme.palette.text.primary,
+          p: 3,
         }}
       >
-        <CircularProgress />
-        <Typography variant="h6" sx={{ ml: 2 }}>
+        <CircularProgress color="primary" size={60} sx={{ mb: 2 }} />
+        <Typography variant="h6" sx={{ color: theme.palette.text.secondary }}>
           Loading data...
         </Typography>
       </Box>
@@ -257,74 +365,140 @@ const JobRegisterPage = () => {
 
   if (error) {
     return (
-      <Box sx={{ p: 3, maxWidth: 600, mx: "auto" }}>
-        <Alert severity="error">{error}</Alert>
-        <Button
-          variant="contained"
-          onClick={() => window.location.reload()}
-          sx={{ mt: 2 }}
-        >
-          Retry
-        </Button>
-        <Button
-          variant="outlined"
-          onClick={() => router.push("/login")}
-          sx={{ mt: 2, ml: 2 }}
-        >
-          Go to Login
-        </Button>
+      <Box
+        sx={{
+          p: 3,
+          maxWidth: 600,
+          mx: "auto",
+          mt: 8,
+          [theme.breakpoints.down("sm")]: {
+            mt: 4,
+            p: 2,
+          },
+        }}
+      >
+        <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+          <Alert severity="error" sx={{ mb: 3, boxShadow: 1 }}>
+            {error}
+          </Alert>
+          <Box sx={{ display: "flex", gap: 2, flexDirection: { xs: "column", sm: "row" } }}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => window.location.reload()}
+              sx={{ flexGrow: 1 }}
+            >
+              Retry
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={() => router.push("/login")}
+              sx={{ flexGrow: 1 }}
+            >
+              Go to Login
+            </Button>
+          </Box>
+        </Paper>
       </Box>
     );
   }
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ p: 3, maxWidth: 900, mx: "auto" }}>
+      <Box
+        sx={{
+          p: { xs: 2, sm: 3, md: 4 },
+          maxWidth: 1000,
+          mx: "auto",
+          my: 4,
+        }}
+      >
         <Typography
-          variant="h5"
+          variant="h4"
           component="h1"
           gutterBottom
           align="center"
-          sx={{ mb: 4 }}
+          sx={{
+            mb: 4,
+            fontWeight: "bold",
+            color: theme.palette.primary.dark,
+            fontSize: { xs: "2rem", sm: "2.5rem", md: "3rem" },
+          }}
         >
-          Job Detail Register
+          Register New Job Order
         </Typography>
 
-        <Paper elevation={2} sx={{ p: 4 }}>
-          <Grid container spacing={3}>
-            {/* Row 1 */}
-            <Grid item xs={12} sm={4} component="div">
+        <Paper
+          elevation={8}
+          sx={{
+            p: { xs: 2.5, sm: 4, md: 5 },
+            borderRadius: 3,
+            border: `1px solid ${theme.palette.divider}`,
+            bgcolor: theme.palette.background.paper,
+          }}
+        >
+          {submissionStatus.message && (
+            <Fade in={!!submissionStatus.message}>
+              <Alert
+                severity={submissionStatus.severity}
+                onClose={() => setSubmissionStatus({ message: null, severity: undefined })}
+                sx={{ mb: 3 }}
+              >
+                {submissionStatus.message}
+              </Alert>
+            </Fade>
+          )}
+
+          <Grid container spacing={4}>
+            <Grid item xs={12}>
+              <Typography
+                variant="h6"
+                gutterBottom
+                color="text.secondary"
+                sx={{ mb: 1, borderBottom: `2px solid ${theme.palette.primary.light}`, pb: 0.5 }}
+              >
+                Job Details
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Title"
+                label="Job Title"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
                 variant="outlined"
-                size="small"
+                size="medium"
                 required
                 error={!!formErrors.title}
                 helperText={formErrors.title}
+                placeholder="e.g., Website Redesign Project for Client X"
+                InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={4} component="div">
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Customer"
+                label="Customer Name"
                 name="customer"
                 value={formData.customer}
                 onChange={handleChange}
                 variant="outlined"
-                size="small"
+                size="medium"
                 required
                 error={!!formErrors.customer}
                 helperText={formErrors.customer}
+                placeholder="e.g., Stellar Innovations Inc."
+                InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={4} component="div">
+
+            <Grid item xs={12} sm={6}>
               <FormControl
                 fullWidth
-                size="small"
+                size="medium"
                 required
                 error={!!formErrors.category}
               >
@@ -337,106 +511,120 @@ const JobRegisterPage = () => {
                   onChange={handleChange}
                   label="Category"
                 >
+                  <MenuItem value="">
+                    <em>Select a category</em>
+                  </MenuItem>
                   {categories.map((cat: any) => (
-                    <MenuItem key={cat.id} value={cat.id}>
+                    <MenuItem key={cat.id} value={cat.id}> {/* Assuming cat.id is the value for category */}
                       {cat.categoryName}
                     </MenuItem>
                   ))}
                 </Select>
                 {formErrors.category && (
-                  <Typography
-                    variant="caption"
-                    color="error"
-                    sx={{ ml: 1.5, mt: 0.5 }}
-                  >
+                  <Typography variant="caption" color="error" sx={{ ml: 1.5, mt: 0.5 }}>
                     {formErrors.category}
                   </Typography>
                 )}
               </FormControl>
             </Grid>
-
-            {/* Row 2 */}
-            <Grid item xs={12} sm={4} component="div">
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Priority"
                 name="priority"
+                select
                 value={formData.priority}
                 onChange={handleChange}
                 variant="outlined"
-                size="small"
+                size="medium"
                 required
                 error={!!formErrors.priority}
                 helperText={formErrors.priority}
-              />
+                InputLabelProps={{ shrink: true }}
+              >
+                <MenuItem value="">
+                  <em>Select priority</em>
+                </MenuItem>
+                <MenuItem value="High">High</MenuItem>
+                <MenuItem value="Medium">Medium</MenuItem>
+                <MenuItem value="Low">Low</MenuItem>
+              </TextField>
             </Grid>
-            <Grid item xs={12} sm={4} component="div">
+
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="CD"
+                label="Contact Department (CD)"
                 name="cd"
                 value={formData.cd}
                 onChange={handleChange}
                 variant="outlined"
-                size="small"
+                size="medium"
                 required
                 error={!!formErrors.cd}
                 helperText={formErrors.cd}
+                placeholder="e.g., Sales Department"
+                InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={4} component="div">
+            <Grid item xs={12} sm={6}>
               <FormControl
                 fullWidth
-                size="small"
+                size="medium"
                 required
                 error={!!formErrors.assignees}
               >
-                <InputLabel id="assignees-label">Assignees</InputLabel>
+                <InputLabel id="assignees-label">Assignee</InputLabel>
                 <Select
                   labelId="assignees-label"
                   id="assignees"
                   name="assignees"
                   value={formData.assignees}
                   onChange={handleChange}
-                  label="Assignees"
+                  label="Assignee"
                 >
+                  <MenuItem value="">
+                    <em>Select an assignee</em>
+                  </MenuItem>
                   {assignees.map((user: any) => (
-                    <MenuItem key={user.id} value={user.id}>
+                    <MenuItem key={user.id} value={user.id}> {/* Assuming user.id is the value for assignee */}
                       {user.name}
                     </MenuItem>
                   ))}
                 </Select>
                 {formErrors.assignees && (
-                  <Typography
-                    variant="caption"
-                    color="error"
-                    sx={{ ml: 1.5, mt: 0.5 }}
-                  >
+                  <Typography variant="caption" color="error" sx={{ ml: 1.5, mt: 0.5 }}>
                     {formErrors.assignees}
                   </Typography>
                 )}
               </FormControl>
             </Grid>
 
-            {/* Row 3 */}
-            <Grid item xs={12} sm={4} component="div">
+            <Grid item xs={12} sm={6}>
               <DatePicker
                 label="Due Date"
                 value={formData.dueDate}
                 onChange={handleDueDateChange}
+                format="DD/MM/YYYY"
                 slotProps={{
                   textField: {
                     fullWidth: true,
-                    size: "small",
+                    size: "medium",
                     variant: "outlined",
                     required: true,
                     error: !!formErrors.dueDate,
                     helperText: formErrors.dueDate,
+                    InputLabelProps: { shrink: true },
                     InputProps: {
                       endAdornment: (
                         <InputAdornment position="end">
+                          {formData.dueDate && (
+                            <IconButton onClick={() => handleDueDateChange(null)} size="small" edge="end">
+                              <ClearIcon fontSize="small" color="action" />
+                            </IconButton>
+                          )}
                           <IconButton>
-                            <EventIcon />
+                            <EventIcon color="action" />
                           </IconButton>
                         </InputAdornment>
                       ),
@@ -445,7 +633,7 @@ const JobRegisterPage = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={4} component="div">
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Region"
@@ -453,78 +641,128 @@ const JobRegisterPage = () => {
                 value={formData.region}
                 onChange={handleChange}
                 variant="outlined"
-                size="small"
+                size="medium"
                 required
                 error={!!formErrors.region}
                 helperText={formErrors.region}
+                placeholder="e.g., North America, APAC, EMEA"
+                InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            {/* Removed the empty Grid item to make layout consistent */}
 
-            {/* Description - now takes full width */}
-            <Grid item xs={12} component="div">
+            <Grid item xs={12}>
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{ mt: 2, mb: 1, borderBottom: `2px solid ${theme.palette.primary.light}`, pb: 0.5 }}
+                color="text.secondary"
+              >
+                Additional Information
+              </Typography>
               <TextField
                 fullWidth
-                label="Description"
+                label="Job Description"
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
                 multiline
-                rows={6}
+                rows={7}
                 variant="outlined"
+                placeholder="Provide a detailed description of the job, including specific requirements, scope, deliverables, and any other relevant information."
+                InputLabelProps={{ shrink: true }}
               />
             </Grid>
 
-            {/* Attachments - changed to regular TextField as per request */}
-            <Grid item xs={12} component="div">
-              {/* <TextField
-                fullWidth
-                label="Attachments" // Changed label to reflect input
-                name="attachments"
-                value={formData.attachments} // Bind to formData.attachments
-                onChange={handleChange} // Use general handleChange
-                variant="outlined"
-                size="small"
-                // No InputLabelProps or InputProps for icon as it's not a file input anymore
-              /> */}
-              <Button
-                component="label"
-                role={undefined}
-                variant="contained"
-                tabIndex={-1}
-                startIcon={<CloudUploadIcon />}
+            <Grid item xs={12}>
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{ mt: 2, mb: 1, borderBottom: `2px solid ${theme.palette.primary.light}`, pb: 0.5 }}
+                color="text.secondary"
               >
-                Upload files
-                <VisuallyHiddenInput
-                  type="file"
-                  onChange={(event) => console.log(event.target.files)}
-                  multiple
-                />
-              </Button>
+                Attachments
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                <Button
+                  component="label"
+                  role={undefined}
+                  variant="contained"
+                  tabIndex={-1}
+                  startIcon={<CloudUploadIcon />}
+                  sx={{
+                    bgcolor: theme.palette.info.main,
+                    "&:hover": { bgcolor: theme.palette.info.dark },
+                    py: 1.2,
+                    px: 3,
+                  }}
+                >
+                  Upload Files
+                  <VisuallyHiddenInput
+                    type="file"
+                    onChange={handleFileChange}
+                    multiple
+                    accept=".pdf,.jpg,.jpeg,.png"
+                  />
+                </Button>
+                {formData.attachments.length > 0 && (
+                  <Typography variant="body2" color="text.primary" sx={{ fontWeight: 'medium' }}>
+                    {formData.attachments.length} file(s) selected
+                  </Typography>
+                )}
+                {formErrors.attachments && (
+                  <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5 }}>
+                    {formErrors.attachments}
+                  </Typography>
+                )}
+              </Box>
+              <Typography variant="caption" display="block" sx={{ mt: 1, color: 'text.secondary' }}>
+                (Max 5 files, 10MB each. Supported formats: PDF, JPG, PNG. Click to select files.)
+              </Typography>
             </Grid>
 
-            {/* Buttons */}
             <Grid
               item
               xs={12}
               sx={{
                 display: "flex",
-                gap: 2,
-                mt: 3,
-                justifyContent: { xs: "center", sm: "flex-start" },
+                gap: { xs: 1.5, sm: 3 },
+                mt: 4,
+                justifyContent: { xs: "center", sm: "flex-end" },
+                pt: 3,
+                borderTop: `1px solid ${theme.palette.divider}`,
               }}
-              component="div"
             >
-              <Button variant="outlined" onClick={handleSave} sx={{ px: 4 }}>
-                Save
-              </Button>
               <Button
                 variant="contained"
-                color="success"
-                onClick={handleList}
-                sx={{ px: 4 }}
+                color="primary"
+                onClick={handleSave}
+                sx={{
+                  px: { xs: 3, sm: 6 },
+                  py: 1.5,
+                  fontSize: { xs: "0.95rem", sm: "1.05rem" },
+                  fontWeight: "bold",
+                  boxShadow: theme.shadows[4],
+                  '&:hover': {
+                    boxShadow: theme.shadows[6],
+                  },
+                }}
+                disabled={loading}
               >
-                List
+                {loading ? <CircularProgress size={24} color="inherit" /> : "Save Job Order"}
+              </Button>
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={handleList}
+                sx={{
+                  px: { xs: 3, sm: 6 },
+                  py: 1.5,
+                  fontSize: { xs: "0.95rem", sm: "1.05rem" },
+                  fontWeight: "bold",
+                }}
+                disabled={loading}
+              >
+                View All Jobs
               </Button>
             </Grid>
           </Grid>

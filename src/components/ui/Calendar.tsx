@@ -47,7 +47,6 @@ const Calendar = ({
     return date.getFullYear();
   };
 
-  // Type predicate to check if a value is a DateRange
   const isDateRange = (range: Date | DateRange | undefined): range is DateRange => {
     return (range as DateRange)?.from !== undefined;
   };
