@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Button } from "@/components/ui/button";
+// import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { isTokenExpired } from "@/lib/utils";
 import Cookies from "js-cookie";
@@ -16,13 +16,38 @@ import {
   Typography,
   CircularProgress,
   Box,
+  Card,
+  CardContent,
+  CardHeader,
+  Avatar,
+  Chip,
+  Divider,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  Button,
+  Paper,
 } from "@mui/material";
 import Autocomplete from "@mui/material/Autocomplete";
 import { useAppContext } from "@/app/app-provider";
-import IconButton from "@mui/material/IconButton"; // Import IconButton
-import EditIcon from "@mui/icons-material/Edit"; // Import Edit icon
-import DeleteIcon from "@mui/icons-material/Delete"; // Import Delete icon
-import FileDownloadIcon from "@mui/icons-material/FileDownload"; // Import Download icon
+import IconButton from "@mui/material/IconButton";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import AddIcon from "@mui/icons-material/Add";
+import SaveIcon from "@mui/icons-material/Save";
+import CancelIcon from "@mui/icons-material/Cancel";
+import PersonIcon from "@mui/icons-material/Person";
+import WorkIcon from "@mui/icons-material/Work";
+import DescriptionIcon from "@mui/icons-material/Description";
+import CommentIcon from "@mui/icons-material/Comment";
+import AttachmentIcon from "@mui/icons-material/Attachment";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
+import PriorityHighIcon from "@mui/icons-material/PriorityHigh";
+import CategoryIcon from "@mui/icons-material/Category";
 
 interface User {
   id: number;
@@ -88,6 +113,18 @@ interface JobAttachment {
   createdBy: number;
   createdByName: string;
 }
+
+const priorityColors: Record<string, string> = {
+  High: "error",
+  Medium: "warning",
+  Low: "success",
+};
+
+const statusColors: Record<string, string> = {
+  Open: "primary",
+  "In Progress": "info",
+  Completed: "success",
+};
 
 const JobDetailPage = () => {
   const { id } = useParams();
@@ -325,70 +362,76 @@ const JobDetailPage = () => {
       console.error("Error updating job:", e);
     }
   };
-const handleDeleteCommentAttachment = async (commentId: number, attachmentId: number) => {
-  if (!token || !job?.id) return;
+  const handleDeleteCommentAttachment = async (
+    commentId: number,
+    attachmentId: number
+  ) => {
+    if (!token || !job?.id) return;
 
-  if (isTokenExpired()) {
-    toast({
-      title: "Session Expired",
-      description: "Your session has expired. Please log in again.",
-      variant: "destructive",
-    });
-    Cookies.remove("token");
-    Cookies.remove("userRoles");
-    router.push("/login");
-    return;
-  }
-
-  if (!window.confirm("Are you sure you want to delete this attachment?")) {
-    return;
-  }
-
-  try {
-    const response = await fetch(
-      `http://localhost:8081/api/jobs/${job.id}/comments/${commentId}/attachments/${attachmentId}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (isTokenExpired()) {
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired. Please log in again.",
+        variant: "destructive",
+      });
+      Cookies.remove("token");
+      Cookies.remove("userRoles");
+      router.push("/login");
+      return;
     }
 
-    setJob((prevJob) => {
-      if (prevJob) {
-        return {
-          ...prevJob,
-          comments: prevJob.comments.map(comment => {
-            if (comment.id === commentId) {
-              return {
-                ...comment,
-                attachments: comment.attachments?.filter(att => att.id !== attachmentId) || []
-              };
-            }
-            return comment;
-          }),
-        };
+    if (!window.confirm("Are you sure you want to delete this attachment?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://localhost:8081/api/jobs/${job.id}/comments/${commentId}/attachments/${attachmentId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return prevJob;
-    });
-    toast({
-      title: "Success",
-      description: "Attachment deleted successfully.",
-    });
-  } catch (e: any) {
-    toast({
-      title: "Error",
-      description: `Failed to delete attachment: ${e.message}`,
-      variant: "destructive",
-    });
-    console.error("Error deleting attachment:", e);
-  }
-};
+
+      setJob((prevJob) => {
+        if (prevJob) {
+          return {
+            ...prevJob,
+            comments: prevJob.comments.map((comment) => {
+              if (comment.id === commentId) {
+                return {
+                  ...comment,
+                  attachments:
+                    comment.attachments?.filter(
+                      (att) => att.id !== attachmentId
+                    ) || [],
+                };
+              }
+              return comment;
+            }),
+          };
+        }
+        return prevJob;
+      });
+      toast({
+        title: "Success",
+        description: "Attachment deleted successfully.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: `Failed to delete attachment: ${e.message}`,
+        variant: "destructive",
+      });
+      console.error("Error deleting attachment:", e);
+    }
+  };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setNewAttachments(Array.from(e.target.files));
@@ -770,645 +813,875 @@ const handleDeleteCommentAttachment = async (commentId: number, attachmentId: nu
 
   return (
     <div className="container mx-auto p-4">
-      <Typography
-        variant="h4"
-        component="h1"
-        gutterBottom
-        className="text-center mb-6"
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={4}
       >
-        Job Detail
-      </Typography>
-
-      {/* Job Details Card */}
-      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
-        <Typography
-          variant="h5"
-          component="h2"
-          gutterBottom
-          className="mb-4 text-center"
-        >
-          Job Information
+        <Typography variant="h4" component="h1" fontWeight="bold">
+          Job Details
         </Typography>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Requester</div>
+        {canEdit && (
+          <Box display="flex" gap={2}>
+            <Button
+              onClick={handleEditToggle}
+              variant={isEditing ? "outlined" : "contained"}
+              color="primary"
+              startIcon={isEditing ? <CancelIcon /> : <EditIcon />}
+            >
+              {isEditing ? "Cancel" : "Edit Job"}
+            </Button>
             {isEditing ? (
-              <TextField
-                name="requesterBy"
-                value={editedJob.requesterBy || ""}
-                onChange={handleChange}
-                fullWidth
-                variant="outlined"
-              />
-            ) : (
-              <Typography className="text-gray-700 dark:text-gray-300">
-                {job.requesterBy}
-              </Typography>
-            )}
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Customer</div>
-            {isEditing ? (
-              <TextField
-                name="customer"
-                value={editedJob.customer || ""}
-                onChange={handleChange}
-                fullWidth
-                variant="outlined"
-              />
-            ) : (
-              <Typography className="text-gray-700 dark:text-gray-300">
-                {job.customer}
-              </Typography>
-            )}
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Category</div>
-            {isEditing ? (
-              <TextField
-                name="category"
-                value={editedJob.category || ""}
-                onChange={handleChange}
-                fullWidth
-                variant="outlined"
-              />
-            ) : (
-              <Typography className="text-gray-700 dark:text-gray-300">
-                {job.category || "N/A"}
-              </Typography>
-            )}
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Priority</div>
-            {isEditing ? (
-              <TextField
-                name="priority"
-                value={editedJob.priority || ""}
-                onChange={handleChange}
-                fullWidth
-                variant="outlined"
-              />
-            ) : (
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-semibold 
-                ${
-                  job.priority === "High"
-                    ? "bg-red-100 text-red-800"
-                    : job.priority === "Medium"
-                    ? "bg-yellow-100 text-yellow-800"
-                    : job.priority === "Low"
-                    ? "bg-green-100 text-green-800"
-                    : "bg-gray-100 text-gray-800"
-                }
-              `}
+              <Button
+                onClick={handleSave}
+                variant="contained"
+                color="success"
+                startIcon={<SaveIcon />}
               >
-                {job.priority || "N/A"}
-              </span>
-            )}
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">CD</div>
-            {isEditing ? (
-              <Autocomplete
-                options={users}
-                getOptionLabel={(option) => option.name}
-                value={users.find((user) => user.name === editedJob.cd) || null}
-                onChange={handleAutocompleteChange("cd")}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="CD"
-                    variant="outlined"
-                    fullWidth
-                  />
-                )}
-              />
-            ) : (
-              <Typography className="text-gray-700 dark:text-gray-300">
-                {job.cd || "N/A"}
-              </Typography>
-            )}
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Assignees</div>
-            {isEditing ? (
-              <Autocomplete
-                multiple
-                options={users}
-                getOptionLabel={(option) => option.name}
-                value={editedJob.assignees || []}
-                onChange={handleAutocompleteChange("assignees")}
-                filterSelectedOptions
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Assignees"
-                    variant="outlined"
-                    fullWidth
-                  />
-                )}
-              />
-            ) : (
-              <Typography className="text-gray-700 dark:text-gray-300">
-                {job.assignees && job.assignees.length > 0
-                  ? job.assignees.map((assignee) => assignee.name).join(", ")
-                  : "N/A"}
-              </Typography>
-            )}
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Status</div>
-            {isEditing ? (
-              <FormControl fullWidth variant="outlined">
-                <InputLabel>Status</InputLabel>
-                <Select
-                  name="status"
-                  value={editedJob.statusId || ""}
-                  onChange={handleStatusChange}
-                  label="Status"
-                >
-                  {statusOptions.map((status) => (
-                    <MenuItem key={status.statusId} value={status.statusId}>
-                      {status.statusName}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            ) : (
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-semibold 
-                ${
-                  job.status === "Open"
-                    ? "bg-blue-100 text-blue-800"
-                    : job.status === "In Progress"
-                    ? "bg-yellow-100 text-yellow-800"
-                    : job.status === "Completed"
-                    ? "bg-green-100 text-green-800"
-                    : "bg-gray-100 text-gray-800"
-                }
-              `}
-              >
-                {job.status || "N/A"}
-              </span>
-            )}
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Title</div>
-            {isEditing ? (
-              <TextField
-                name="title"
-                value={editedJob.title || ""}
-                onChange={handleChange}
-                fullWidth
-                variant="outlined"
-              />
-            ) : (
-              <Typography className="text-gray-700 dark:text-gray-300">
-                {job.title}
-              </Typography>
-            )}
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Due Date</div>
-            {isEditing ? (
-              <TextField
-                name="dueDate"
-                type="datetime-local"
-                value={
-                  editedJob.dueDate
-                    ? format(new Date(editedJob.dueDate), "yyyy-MM-dd'T'HH:mm")
-                    : ""
-                }
-                onChange={handleDateChange("dueDate")}
-                fullWidth
-                variant="outlined"
-                InputLabelProps={{ shrink: true }}
-              />
-            ) : (
-              <Typography className="text-gray-700 dark:text-gray-300">
-                {job.dueDate
-                  ? format(new Date(job.dueDate), "MMM d, yyyy HH:mm")
-                  : "N/A"}
-              </Typography>
-            )}
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Registered Date</div>
-            <Typography className="text-gray-700 dark:text-gray-300">
-              {job.createdAt
-                ? format(new Date(job.createdAt), "MMM d, yyyy HH:mm")
-                : "N/A"}
-            </Typography>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Completed At</div>
-            {isEditing ? (
-              <TextField
-                name="completedAt"
-                type="datetime-local"
-                value={
-                  editedJob.completedAt
-                    ? format(
-                        new Date(editedJob.completedAt),
-                        "yyyy-MM-dd'T'HH:mm"
-                      )
-                    : ""
-                }
-                onChange={handleDateChange("completedAt")}
-                fullWidth
-                variant="outlined"
-                InputLabelProps={{ shrink: true }}
-              />
-            ) : (
-              <Typography className="text-gray-700 dark:text-gray-300">
-                {job.completedAt
-                  ? format(new Date(job.completedAt), "MMM d, yyyy HH:mm")
-                  : "N/A"}
-              </Typography>
-            )}
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <div className="font-bold text-lg mb-2">Region</div>
-            {isEditing ? (
-              <TextField
-                name="region"
-                value={editedJob.region || ""}
-                onChange={handleChange}
-                fullWidth
-                variant="outlined"
-              />
-            ) : (
-              <Typography className="text-gray-700 dark:text-gray-300">
-                {job.region || "N/A"}
-              </Typography>
-            )}
-          </Grid>
-          <Grid item xs={12}>
-            <div className="font-bold text-lg mb-2">Description</div>
-            {isEditing ? (
-              <TextField
-                name="description"
-                value={editedJob.description || ""}
-                onChange={handleChange}
-                multiline
-                rows={4}
-                fullWidth
-                variant="outlined"
-              />
-            ) : (
-              <Typography className="text-gray-800 dark:text-gray-200">
-                {job.description}
-              </Typography>
-            )}
-          </Grid>
-        </Grid>
-        <div className="mt-6 flex space-x-2 justify-end">
-          {canEdit && (
-            <>
-              <Button onClick={handleEditToggle} variant="outline">
-                {isEditing ? "Cancel" : "Edit Job"}
+                Save Changes
               </Button>
-              {isEditing && (
+            ) : (
+              isAdmin && (
                 <Button
-                  onClick={handleSave}
-                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                  onClick={handleDeleteJob}
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteIcon />}
                 >
-                  Save Changes
-                </Button>
-              )}
-              {isAdmin && !isEditing && (
-                <Button onClick={handleDeleteJob} variant="destructive">
                   Delete Job
                 </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Attachments Card */}
-      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
-        <Typography variant="h5" component="h2" gutterBottom className="mb-4">
-          Job Attachments ({job.attachments?.length || 0})
-        </Typography>
-        {isEditing ? (
-          <div className="mb-4">
-            <InputLabel htmlFor="attachments-upload">
-              Upload New Attachments
-            </InputLabel>
-            <input
-              type="file"
-              id="attachments-upload"
-              multiple
-              onChange={handleFileChange}
-              className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
-            />
-            {newAttachments.length > 0 && (
-              <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                Selected files: {newAttachments.map((f) => f.name).join(", ")}
-              </div>
+              )
             )}
-          </div>
-        ) : null}
-
-        {job.attachments && job.attachments.length > 0 ? (
-          <ul className="list-disc pl-5 space-y-2">
-            {job.attachments.map((attachment) => (
-              <li
-                key={attachment.id}
-                className="flex items-center justify-between text-gray-700 dark:text-gray-300"
-              >
-                <a
-                  href={`http://localhost:8081/api/files/${attachment.filePath}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline flex items-center"
-                >
-                  {attachment.fileName} (
-                  {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB)
-                  <FileDownloadIcon className="ml-2" fontSize="small" />
-                </a>
-                {isEditing && (
-                  <Button
-                    onClick={() => handleDeleteAttachment(attachment.id)}
-                    size="sm"
-                    variant="destructive"
-                    className="ml-4"
-                  >
-                    Delete
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <Typography className="text-gray-600 dark:text-gray-400">
-            No attachments yet.
-          </Typography>
+          </Box>
         )}
-      </div>
+      </Box>
 
-      {/* Comments Card */}
-      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
-        <Typography variant="h5" component="h2" gutterBottom className="mb-4">
-          Comments ({job.comments?.length || 0})
-        </Typography>
+      {/* Job Details Section */}
+      <Grid container spacing={3}>
+        {/* Left Column - Basic Info */}
+        <Grid item xs={12} md={6}>
+          <Card variant="outlined">
+            <CardHeader
+              title="Basic Information"
+              avatar={
+                <Avatar sx={{ bgcolor: "primary.main" }}>
+                  <WorkIcon />
+                </Avatar>
+              }
+            />
+            <CardContent sx={{ flexGrow: 1 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Title
+                    </Typography>
+                    {isEditing ? (
+                      <TextField
+                        name="title"
+                        value={editedJob.title || ""}
+                        onChange={handleChange}
+                        fullWidth
+                        variant="outlined"
+                        size="small"
+                      />
+                    ) : (
+                      <Typography variant="body1">{job.title}</Typography>
+                    )}
+                  </Box>
+                </Grid>
 
-        {canEdit && (
-          <div className="mb-6 border-b pb-4 border-gray-200 dark:border-gray-700">
-            <TextField
-              label="Add a comment"
-              multiline
-              rows={3}
-              fullWidth
-              variant="outlined"
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              className="mb-2"
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Status
+                    </Typography>
+                    {isEditing ? (
+                      <FormControl fullWidth variant="outlined" size="small">
+                        <InputLabel>Status</InputLabel>
+                        <Select
+                          name="status"
+                          value={editedJob.statusId || ""}
+                          onChange={handleStatusChange}
+                          label="Status"
+                        >
+                          {statusOptions.map((status) => (
+                            <MenuItem
+                              key={status.statusId}
+                              value={status.statusId}
+                            >
+                              {status.statusName}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    ) : (
+                      <Chip
+                        label={job.status || "N/A"}
+                        color={
+                          job.status === "Open"
+                            ? "primary"
+                            : job.status === "In Progress"
+                            ? "info"
+                            : job.status === "Completed"
+                            ? "success"
+                            : "default"
+                        }
+                      />
+                    )}
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Category
+                    </Typography>
+                    {isEditing ? (
+                      <TextField
+                        name="category"
+                        value={editedJob.category || ""}
+                        onChange={handleChange}
+                        fullWidth
+                        variant="outlined"
+                        size="small"
+                      />
+                    ) : (
+                      <Typography variant="body1">
+                        {job.category || "N/A"}
+                      </Typography>
+                    )}
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Priority
+                    </Typography>
+                    {isEditing ? (
+                      <TextField
+                        name="priority"
+                        value={editedJob.priority || ""}
+                        onChange={handleChange}
+                        fullWidth
+                        variant="outlined"
+                        size="small"
+                      />
+                    ) : (
+                      <Chip
+                        label={job.priority || "N/A"}
+                        color={
+                          job.priority === "High"
+                            ? "error"
+                            : job.priority === "Medium"
+                            ? "warning"
+                            : job.priority === "Low"
+                            ? "success"
+                            : "default"
+                        }
+                      />
+                    )}
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Description
+                    </Typography>
+                    {isEditing ? (
+                      <TextField
+                        name="description"
+                        value={editedJob.description || ""}
+                        onChange={handleChange}
+                        multiline
+                        rows={4}
+                        fullWidth
+                        variant="outlined"
+                      />
+                    ) : (
+                      <Typography variant="body1" paragraph>
+                        {job.description}
+                      </Typography>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+
+          {/* People Section */}
+          <Card variant="outlined" sx={{ mt: 3 }}>
+            <CardHeader
+              title="People"
+              avatar={
+                <Avatar sx={{ bgcolor: "secondary.main" }}>
+                  <PersonIcon />
+                </Avatar>
+              }
             />
-            <input
-              type="file"
-              multiple
-              onChange={handleCommentFileChange}
-              ref={commentFileInputRef}
-              className="mb-4 block text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
-            />
-            {commentAttachments.length > 0 && (
-              <div className="mb-4">
-                <Typography variant="body2" className="text-gray-600 dark:text-gray-300">
-                  Files to upload:
-                </Typography>
-                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-                  {commentAttachments.map((file, index) => {
-                    const isImage = file.type.startsWith("image/");
-                    return (
-                      <li key={index} className="flex flex-col items-start bg-white dark:bg-gray-700 p-2 rounded-md border border-gray-200 dark:border-gray-600">
-                        {isImage && (
-                          <img
-                            src={URL.createObjectURL(file)}
-                            alt={file.name}
-                            className="max-w-full h-24 object-contain mb-2 rounded-sm"
-                            style={{ maxWidth: '100%', height: '96px', objectFit: 'contain' }}
+            <CardContent sx={{ flexGrow: 1 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Requester
+                    </Typography>
+                    {isEditing ? (
+                      <TextField
+                        name="requesterBy"
+                        value={editedJob.requesterBy || ""}
+                        onChange={handleChange}
+                        fullWidth
+                        variant="outlined"
+                        size="small"
+                      />
+                    ) : (
+                      <Typography variant="body1">{job.requesterBy}</Typography>
+                    )}
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Customer
+                    </Typography>
+                    {isEditing ? (
+                      <TextField
+                        name="customer"
+                        value={editedJob.customer || ""}
+                        onChange={handleChange}
+                        fullWidth
+                        variant="outlined"
+                        size="small"
+                      />
+                    ) : (
+                      <Typography variant="body1">{job.customer}</Typography>
+                    )}
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      CD
+                    </Typography>
+                    {isEditing ? (
+                      <Autocomplete
+                        options={users}
+                        getOptionLabel={(option) => option.name}
+                        value={
+                          users.find((user) => user.name === editedJob.cd) ||
+                          null
+                        }
+                        onChange={handleAutocompleteChange("cd")}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            variant="outlined"
+                            size="small"
+                            fullWidth
                           />
                         )}
-                        <div className="flex items-center w-full justify-between">
-                          <span className="text-sm text-gray-700 dark:text-gray-200 break-words">
-                            {file.name}
-                          </span>
+                      />
+                    ) : (
+                      <Typography variant="body1">{job.cd || "N/A"}</Typography>
+                    )}
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Assignees
+                    </Typography>
+                    {isEditing ? (
+                      <Autocomplete
+                        multiple
+                        options={users}
+                        getOptionLabel={(option) => option.name}
+                        value={editedJob.assignees || []}
+                        onChange={handleAutocompleteChange("assignees")}
+                        filterSelectedOptions
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            variant="outlined"
+                            size="small"
+                            fullWidth
+                          />
+                        )}
+                      />
+                    ) : (
+                      <Box display="flex" flexWrap="wrap" gap={1}>
+                        {job.assignees && job.assignees.length > 0 ? (
+                          job.assignees.map((assignee) => (
+                            <Chip
+                              key={assignee.id}
+                              label={assignee.name}
+                              size="small"
+                              avatar={
+                                <Avatar>{assignee.name.charAt(0)}</Avatar>
+                              }
+                            />
+                          ))
+                        ) : (
+                          <Typography variant="body1">N/A</Typography>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Right Column - Dates & Attachments */}
+        <Grid item xs={12} md={6}>
+          {/* Dates Section */}
+          <Card variant="outlined">
+            <CardHeader
+              title="Dates"
+              avatar={
+                <Avatar sx={{ bgcolor: "info.main" }}>
+                  <CalendarTodayIcon />
+                </Avatar>
+              }
+            />
+            <CardContent sx={{ flexGrow: 1 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Due Date
+                    </Typography>
+                    {isEditing ? (
+                      <TextField
+                        name="dueDate"
+                        type="datetime-local"
+                        value={
+                          editedJob.dueDate
+                            ? format(
+                                new Date(editedJob.dueDate),
+                                "yyyy-MM-dd'T'HH:mm"
+                              )
+                            : ""
+                        }
+                        onChange={handleDateChange("dueDate")}
+                        fullWidth
+                        variant="outlined"
+                        size="small"
+                        InputLabelProps={{ shrink: true }}
+                      />
+                    ) : (
+                      <Typography variant="body1">
+                        {job.dueDate
+                          ? format(new Date(job.dueDate), "MMM d, yyyy HH:mm")
+                          : "N/A"}
+                      </Typography>
+                    )}
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Registered Date
+                    </Typography>
+                    <Typography variant="body1">
+                      {job.createdAt
+                        ? format(new Date(job.createdAt), "MMM d, yyyy HH:mm")
+                        : "N/A"}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Completed At
+                    </Typography>
+                    {isEditing ? (
+                      <TextField
+                        name="completedAt"
+                        type="datetime-local"
+                        value={
+                          editedJob.completedAt
+                            ? format(
+                                new Date(editedJob.completedAt),
+                                "yyyy-MM-dd'T'HH:mm"
+                              )
+                            : ""
+                        }
+                        onChange={handleDateChange("completedAt")}
+                        fullWidth
+                        variant="outlined"
+                        size="small"
+                        InputLabelProps={{ shrink: true }}
+                      />
+                    ) : (
+                      <Typography variant="body1">
+                        {job.completedAt
+                          ? format(
+                              new Date(job.completedAt),
+                              "MMM d, yyyy HH:mm"
+                            )
+                          : "N/A"}
+                      </Typography>
+                    )}
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box mb={2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      Region
+                    </Typography>
+                    {isEditing ? (
+                      <TextField
+                        name="region"
+                        value={editedJob.region || ""}
+                        onChange={handleChange}
+                        fullWidth
+                        variant="outlined"
+                        size="small"
+                      />
+                    ) : (
+                      <Typography variant="body1">
+                        {job.region || "N/A"}
+                      </Typography>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+
+          {/* Attachments Section */}
+          <Card variant="outlined" sx={{ mt: 3 }}>
+            <CardHeader
+              title={`Attachments (${job.attachments?.length || 0})`}
+              avatar={
+                <Avatar sx={{ bgcolor: "warning.main" }}>
+                  <FileDownloadIcon />
+                </Avatar>
+              }
+            />
+            <CardContent sx={{ flexGrow: 1 }}>
+              {isEditing && (
+                <Box mb={3}>
+                  <input
+                    type="file"
+                    id="attachments-upload"
+                    multiple
+                    onChange={handleFileChange}
+                    style={{ display: "none" }}
+                  />
+                  <label htmlFor="attachments-upload">
+                    <Button component="span" variant="outlined" fullWidth>
+                      Upload Files
+                    </Button>
+                  </label>
+                  {newAttachments.length > 0 && (
+                    <Box mt={2}>
+                      <Typography
+                        variant="body2"
+                        color="textSecondary"
+                        gutterBottom
+                      >
+                        Selected files:
+                      </Typography>
+                      <Box component="ul" sx={{ pl: 2 }}>
+                        {newAttachments.map((file, index) => (
+                          <Box
+                            component="li"
+                            key={index}
+                            display="flex"
+                            justifyContent="space-between"
+                          >
+                            <Typography variant="body2">
+                              {file.name} (
+                              {(file.size / 1024 / 1024).toFixed(2)} MB)
+                            </Typography>
+                            <IconButton
+                              onClick={() => {
+                                const newFiles = [...newAttachments];
+                                newFiles.splice(index, 1);
+                                setNewAttachments(newFiles);
+                              }}
+                              size="small"
+                              color="error"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
+              )}
+
+              {job.attachments && job.attachments.length > 0 ? (
+                <Box component="ul" sx={{ pl: 0 }}>
+                  {job.attachments.map((attachment) => (
+                    <Paper
+                      key={attachment.id}
+                      component="li"
+                      variant="outlined"
+                      sx={{
+                        p: 2,
+                        mb: 1,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="body2">
+                          <a
+                            href={`http://localhost:8081/api/files/${attachment.filePath}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ textDecoration: "none", color: "inherit" }}
+                          >
+                            {attachment.fileName}
+                          </a>
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
+                        </Typography>
+                      </Box>
+                      <Box display="flex" alignItems="center">
+                        <IconButton
+                          href={`http://localhost:8081/api/files/${attachment.filePath}`}
+                          target="_blank"
+                          size="small"
+                          sx={{ mr: 1 }}
+                        >
+                          <FileDownloadIcon fontSize="small" />
+                        </IconButton>
+                        {isEditing && (
                           <IconButton
-                            onClick={() => {
-                              const newAttachments = [...commentAttachments];
-                              newAttachments.splice(index, 1);
-                              setCommentAttachments(newAttachments);
-                            }}
+                            onClick={() =>
+                              handleDeleteAttachment(attachment.id)
+                            }
                             size="small"
                             color="error"
-                            aria-label="remove file"
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
-                        </div>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {(file.size / 1024).toFixed(2)} KB
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-            <Button
-              onClick={handleAddComment}
-              className="bg-green-500 hover:bg-green-600 text-white"
-            >
-              Add Comment
-            </Button>
-          </div>
-        )}
-
-        <div className="mt-6 space-y-6">
-          {job.comments.length > 0 ? (
-            <>
-              {job.comments.map((comment) => (
-                <div
-                  key={comment.id}
-                  className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow-sm"
+                        )}
+                      </Box>
+                    </Paper>
+                  ))}
+                </Box>
+              ) : (
+                <Typography
+                  variant="body2"
+                  color="textSecondary"
+                  textAlign="center"
+                  py={2}
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <Typography
-                      variant="subtitle1"
-                      className="font-bold text-gray-900 dark:text-gray-100"
+                  No attachments yet
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Comments Section */}
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mt-6">
+        {/* Comments Section */}
+        <Card variant="outlined" sx={{ mt: 3 }}>
+          <CardHeader
+            title={`Threads (${job.comments?.length || 0})`}
+            avatar={
+              <Avatar sx={{ bgcolor: "success.main" }}>
+                <CommentIcon />
+              </Avatar>
+            }
+          />
+          <CardContent>
+            {/* Comment Input */}
+            <Box mb={3}>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                variant="outlined"
+                placeholder="Add a comment..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+              />
+              <Box
+                mt={1}
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+              >
+                <Box>
+                  <input
+                    type="file"
+                    id="comment-attachments-upload"
+                    multiple
+                    onChange={handleCommentFileChange}
+                    ref={commentFileInputRef}
+                    style={{ display: "none" }}
+                  />
+                  <label htmlFor="comment-attachments-upload">
+                    <Button
+                      component="span"
+                      variant="outlined"
+                      startIcon={<AttachmentIcon />}
+                      size="small"
                     >
-                      {comment.name} ({comment.email})
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      className="text-gray-500 dark:text-gray-400"
-                    >
-                      {format(new Date(comment.createdAt), "MMM d, yyyy HH:mm")}
-                    </Typography>
-                  </div>
-                  {editingCommentId === comment.id ? (
-                    <>
-                      <TextField
-                        value={editingCommentBody}
-                        onChange={(e) => setEditingCommentBody(e.target.value)}
-                        multiline
-                        fullWidth
-                        variant="outlined"
-                        className="mb-2"
-                      />
-                      <input
-                        type="file"
-                        multiple
-                        onChange={handleEditingCommentFileChange}
-                        ref={editingCommentFileInputRef}
-                        className="mb-4 block text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
-                      />
-                      {editingCommentAttachments.length > 0 && (
-                        <div className="mb-4">
-                          <Typography
-                            variant="body2"
-                            className="text-gray-600 dark:text-gray-300"
-                          >
-                            Files to upload:
-                          </Typography>
-                          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-                            {editingCommentAttachments.map((file, index) => {
-                              const isImage = file.type.startsWith("image/");
-                              return (
-                                <li key={index} className="flex flex-col items-start bg-white dark:bg-gray-700 p-2 rounded-md border border-gray-200 dark:border-gray-600">
-                                  {isImage && (
-                                    <img
-                                      src={URL.createObjectURL(file)}
-                                      alt={file.name}
-                                      className="max-w-full h-24 object-contain mb-2 rounded-sm"
-                                      style={{ maxWidth: '100%', height: '96px', objectFit: 'contain' }}
-                                    />
-                                  )}
-                                  <div className="flex items-center w-full justify-between">
-                                    <span className="text-sm text-gray-700 dark:text-gray-200 break-words">
-                                      {file.name}
-                                    </span>
-                                    <IconButton
-                                      onClick={() => {
-                                        const newAttachments = [...editingCommentAttachments];
-                                        newAttachments.splice(index, 1);
-                                        setEditingCommentAttachments(newAttachments);
-                                      }}
-                                      size="small"
-                                      color="error"
-                                      aria-label="remove file"
-                                    >
-                                      <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                  </div>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {(file.size / 1024).toFixed(2)} KB
-                                  </span>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <Typography
-                      variant="body1"
-                      className="text-gray-800 dark:text-gray-200"
-                    >
-                      {comment.body}
-                    </Typography>
-                  )}
-                  {comment.attachments && comment.attachments.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                      <Typography
-                        variant="subtitle2"
-                        className="text-gray-600 dark:text-gray-400 mb-1"
-                      >
-                        Attachments:
+                      Attach Files
+                    </Button>
+                  </label>
+                  {commentAttachments.length > 0 && (
+                    <Box component="span" ml={2}>
+                      <Typography variant="caption">
+                        {commentAttachments.length} file(s) selected
                       </Typography>
-                      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-                        {comment.attachments.map((attachment) => {
-                          const isImage =
-                            attachment.fileType.startsWith("image/");
-                          return (
-                            <li
-                              key={attachment.id}
-                              className="flex flex-col items-start bg-white dark:bg-gray-800 p-2 rounded-md border border-gray-200 dark:border-gray-600"
-                            >
-                              {isImage && (
-                                <img
-                                  src={`http://localhost:8081/api/files/${attachment.filePath}`}
-                                  alt={attachment.fileName}
-                                  className="max-w-full h-24 object-contain mb-2 rounded-sm"
-                                  style={{
-                                    maxWidth: "100%",
-                                    height: "96px",
-                                    objectFit: "contain",
-                                  }}
-                                />
-                              )}
-                              <div className="flex items-center w-full justify-between">
-                                <a
-                                  href={`http://localhost:8081/api/files/${attachment.filePath}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-500 hover:underline flex items-center break-words"
-                                >
-                                  {attachment.fileName}
-                                  <FileDownloadIcon
-                                    className="ml-1"
-                                    fontSize="small"
-                                  />
-                                </a>
-                                {canEdit && (
-                                  <IconButton
-                                    onClick={() => handleDeleteCommentAttachment(comment.id, attachment.id)}
-                                    size="small"
-                                    color="error"
-                                    aria-label="delete attachment"
-                                  >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                )}
-                              </div>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                {(attachment.fileSize / 1024).toFixed(2)} KB
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
+                    </Box>
                   )}
-                  {canEdit && (
-                    <div className="mt-3 flex justify-end space-x-2">
-                      {editingCommentId === comment.id ? (
-                        <>
-                          <Button
-                            onClick={() => handleSaveComment(comment.id)}
-                            size="sm"
-                            className="bg-blue-500 hover:bg-blue-600 text-white"
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            onClick={handleCancelEditComment}
-                            size="sm"
-                            variant="outline"
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <>
+                </Box>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={handleAddComment}
+                  disabled={!commentText.trim()}
+                  startIcon={<AddIcon />}
+                >
+                  Add Comment
+                </Button>
+              </Box>
+            </Box>
+
+            {/* Comments List */}
+            {job.comments && job.comments.length > 0 ? (
+              <List>
+                {job.comments.map((comment) => (
+                  <React.Fragment key={comment.id}>
+                    <ListItem alignItems="flex-start">
+                      <ListItemAvatar>
+                        <Avatar>
+                          <PersonIcon />
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={
+                          <Box display="flex" justifyContent="space-between">
+                            <Typography fontWeight="bold">
+                              {comment.name || "Anonymous"}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary">
+                              {format(
+                                new Date(comment.createdAt),
+                                "MMM d, yyyy HH:mm"
+                              )}
+                            </Typography>
+                          </Box>
+                        }
+                        secondary={
+                          <Box>
+                            {editingCommentId === comment.id ? (
+                              <Box>
+                                <TextField
+                                  fullWidth
+                                  multiline
+                                  value={editingCommentBody}
+                                  onChange={(e) =>
+                                    setEditingCommentBody(e.target.value)
+                                  }
+                                  variant="outlined"
+                                  sx={{ mb: 1 }}
+                                />
+                                <Box
+                                  display="flex"
+                                  justifyContent="space-between"
+                                >
+                                  <Box>
+                                    <input
+                                      type="file"
+                                      id="edit-comment-attachments"
+                                      multiple
+                                      onChange={handleEditingCommentFileChange}
+                                      ref={editingCommentFileInputRef}
+                                      style={{ display: "none" }}
+                                    />
+                                    <label htmlFor="edit-comment-attachments">
+                                      <Button
+                                        component="span"
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={<AttachmentIcon />}
+                                      >
+                                        Add Files
+                                      </Button>
+                                    </label>
+                                  </Box>
+                                  <Box>
+                                    <Button
+                                      variant="outlined"
+                                      onClick={handleCancelEditComment}
+                                      sx={{ mr: 1 }}
+                                      startIcon={<CancelIcon />}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      variant="contained"
+                                      onClick={() =>
+                                        handleSaveComment(comment.id)
+                                      }
+                                      disabled={!editingCommentBody.trim()}
+                                      startIcon={<SaveIcon />}
+                                    >
+                                      Save
+                                    </Button>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            ) : (
+                              <Typography>{comment.body}</Typography>
+                            )}
+                            {comment.attachments &&
+                              comment.attachments.length > 0 && (
+                                <Box mt={1}>
+                                  {comment.attachments.map((attachment) => (
+                                    <Paper
+                                      key={attachment.id}
+                                      variant="outlined"
+                                      sx={{
+                                        p: 1,
+                                        mb: 1,
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                      }}
+                                    >
+                                      <Box>
+                                        <Typography variant="body2">
+                                          <a
+                                            href={`http://localhost:8081/api/files/${attachment.filePath}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{
+                                              textDecoration: "none",
+                                              color: "inherit",
+                                            }}
+                                          >
+                                            {attachment.fileName}
+                                          </a>
+                                        </Typography>
+                                        <Typography
+                                          variant="caption"
+                                          color="textSecondary"
+                                        >
+                                          {(
+                                            attachment.fileSize /
+                                            1024 /
+                                            1024
+                                          ).toFixed(2)}{" "}
+                                          MB
+                                        </Typography>
+                                      </Box>
+                                      <Box display="flex" alignItems="center">
+                                        <IconButton
+                                          href={`http://localhost:8081/api/files/${attachment.filePath}`}
+                                          target="_blank"
+                                          size="small"
+                                          sx={{ mr: 1 }}
+                                        >
+                                          <FileDownloadIcon fontSize="small" />
+                                        </IconButton>
+                                        {canEdit && (
+                                          <IconButton
+                                            onClick={() =>
+                                              handleDeleteCommentAttachment(
+                                                comment.id,
+                                                attachment.id
+                                              )
+                                            }
+                                            size="small"
+                                            color="error"
+                                          >
+                                            <DeleteIcon fontSize="small" />
+                                          </IconButton>
+                                        )}
+                                      </Box>
+                                    </Paper>
+                                  ))}
+                                </Box>
+                              )}
+                          </Box>
+                        }
+                      />
+                      {canEdit && editingCommentId !== comment.id && (
+                        <Box ml={2}>
                           <IconButton
                             onClick={() => handleEditComment(comment)}
                             size="small"
-                            color="primary"
-                            aria-label="edit comment"
+                            sx={{ mr: 1 }}
                           >
                             <EditIcon fontSize="small" />
                           </IconButton>
@@ -1416,23 +1689,28 @@ const handleDeleteCommentAttachment = async (commentId: number, attachmentId: nu
                             onClick={() => handleDeleteComment(comment.id)}
                             size="small"
                             color="error"
-                            aria-label="delete comment"
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
-                        </>
+                        </Box>
                       )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </>
-          ) : (
-            <Typography className="text-gray-600 dark:text-gray-400">
-              No comments yet.
-            </Typography>
-          )}
-        </div>
+                    </ListItem>
+                    <Divider variant="inset" component="li" />
+                  </React.Fragment>
+                ))}
+              </List>
+            ) : (
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                textAlign="center"
+                py={2}
+              >
+                No comments yet
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
