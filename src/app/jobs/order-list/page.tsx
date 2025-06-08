@@ -16,7 +16,7 @@ import {
   useMediaQuery,
   FormControlLabel,
   Checkbox,
-  FormGroup,
+  Snackbar,
   FormControl,
   Radio,
   RadioGroup,
@@ -26,8 +26,14 @@ import {
   Chip,
   Avatar,
   Stack,
+  Alert,
   Tooltip,
 } from "@mui/material";
+import DownloadIcon from "@mui/icons-material/Download";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
@@ -96,7 +102,21 @@ const WorkOrderDashboard = () => {
       router.push("/login");
     }
   }, [router]);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">(
+    "success"
+  );
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
 
+  const handleExportMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleExportMenuClose = () => {
+    setAnchorEl(null);
+  };
   const [fromDate, setFromDate] = useState<Date | null>(subDays(new Date(), 7));
   const [toDate, setToDate] = useState<Date | null>(new Date());
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
@@ -327,7 +347,75 @@ const WorkOrderDashboard = () => {
   const toggleFilters = () => {
     setShowFilters(!showFilters);
   };
+  const handleExportExcel = async (
+    type: "all" | "my-jobs" | "assigned-jobs"
+  ) => {
+    try {
+      const token = Cookies.get("accessToken");
+      if (!token) {
+        setSnackbarMessage("No access token found. Please log in.");
+        setSnackbarSeverity("error");
+        setSnackbarOpen(true);
+        router.push("/login");
+        return;
+      }
 
+      let url = "";
+      switch (type) {
+        case "all":
+          url = `${API_GET_LIST_JOB}/export/all`;
+          break;
+        case "my-jobs":
+          url = `${API_GET_LIST_JOB}/export/my-jobs`;
+          break;
+        case "assigned-jobs":
+          url = `${API_GET_LIST_JOB}/export/assigned-jobs`;
+          break;
+        default:
+          return;
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to export: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = "export.xlsx";
+
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      const urlObject = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = urlObject;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setSnackbarMessage("Export successful!");
+      setSnackbarSeverity("success");
+      setSnackbarOpen(true);
+    } catch (error: any) {
+      console.error("Error exporting:", error);
+      setSnackbarMessage(error.message || "Failed to export");
+      setSnackbarSeverity("error");
+      setSnackbarOpen(true);
+    }
+  };
   return (
     <Container maxWidth="xl" sx={{ py: 2, px: { xs: 1, sm: 2 } }}>
       {/* Header Section - Made more compact for mobile */}
@@ -412,6 +500,65 @@ const WorkOrderDashboard = () => {
             >
               {isSmallScreen ? "New" : "New Work Order"}
             </Button>
+            <>
+              <Tooltip title="Export options">
+                <IconButton
+                  color="primary"
+                  onClick={handleExportMenuClick}
+                  size={isSmallScreen ? "small" : "medium"}
+                  sx={{ ml: 1 }}
+                >
+                  <DownloadIcon />
+                </IconButton>
+              </Tooltip>
+              <Menu
+                anchorEl={anchorEl}
+                open={open}
+                onClose={handleExportMenuClose}
+                anchorOrigin={{
+                  vertical: "bottom",
+                  horizontal: "right",
+                }}
+                transformOrigin={{
+                  vertical: "top",
+                  horizontal: "right",
+                }}
+              >
+                <MenuItem
+                  onClick={() => {
+                    handleExportExcel("all");
+                    handleExportMenuClose();
+                  }}
+                >
+                  <ListItemIcon>
+                    <DownloadIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Export All Jobs</ListItemText>
+                </MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    handleExportExcel("my-jobs");
+                    handleExportMenuClose();
+                  }}
+                >
+                  <ListItemIcon>
+                    <DownloadIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Export My Created Jobs</ListItemText>
+                </MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    handleExportExcel("assigned-jobs");
+                    handleExportMenuClose();
+                  }}
+                >
+                  <ListItemIcon>
+                    <DownloadIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Export My Assigned Jobs</ListItemText>
+                </MenuItem>
+              </Menu>
+            </>
           </Grid>
         </Grid>
       </Paper>
@@ -578,7 +725,7 @@ const WorkOrderDashboard = () => {
                 onRequestSort={handleRequestSort}
                 headCells={tableHeadCells}
                 sx={{
-                  backgroundColor: (theme) => theme.palette.primary.main,
+                  backgroundColor: "black",
                   "& .MuiTableCell-root": {
                     color: "white",
                     fontWeight: "bold",
@@ -760,6 +907,20 @@ const WorkOrderDashboard = () => {
           </Box>
         )}
       </Paper>
+      <Snackbar
+      open={snackbarOpen}
+      autoHideDuration={6000}
+      onClose={() => setSnackbarOpen(false)}
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+    >
+      <Alert
+        onClose={() => setSnackbarOpen(false)}
+        severity={snackbarSeverity}
+        sx={{ width: '100%' }}
+      >
+        {snackbarMessage}
+      </Alert>
+    </Snackbar>
     </Container>
   );
 };

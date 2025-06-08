@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
-// import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { isTokenExpired } from "@/lib/utils";
 import Cookies from "js-cookie";
@@ -85,6 +84,7 @@ interface Job {
   customer: string;
   requesterBy: string;
   category: string;
+  categoryId: number;
   priority: string;
   status: string;
   statusId: number;
@@ -94,6 +94,7 @@ interface Job {
   dueDate: string;
   createdAt: string;
   completedAt: string | null;
+  assigneeIds?: number[];
   comments: Comment[];
   attachments: JobAttachment[];
 }
@@ -112,6 +113,11 @@ interface JobAttachment {
   createdAt: string;
   createdBy: number;
   createdByName: string;
+}
+
+interface CategoryOption {
+  id: number;
+  categoryName: string;
 }
 
 const priorityColors: Record<string, string> = {
@@ -152,6 +158,7 @@ const JobDetailPage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedJob, setEditedJob] = useState<Partial<Job>>({});
   const [statusOptions, setStatusOptions] = useState<StatusOption[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [commentText, setCommentText] = useState<string>("");
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
@@ -196,7 +203,12 @@ const JobDetailPage = () => {
 
         const data: Job = await response.json();
         setJob(data);
-        setEditedJob(data);
+        setEditedJob({
+          ...data,
+          assignees: data.assignees || [],
+          categoryId: data.categoryId || undefined,
+          statusId: data.statusId || undefined,
+        });
         setLoading(false);
       } catch (e: any) {
         setError(e.message);
@@ -222,6 +234,24 @@ const JobDetailPage = () => {
       }
     };
 
+    const fetchCategoryOptions = async () => {
+      if (!token) return;
+      try {
+        const response = await fetch(`http://localhost:8081/api/categories`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: CategoryOption[] = await response.json();
+        setCategoryOptions(data);
+      } catch (e) {
+        console.error("Error fetching category options:", e);
+      }
+    };
+
     const fetchUsers = async () => {
       if (!token) return;
       try {
@@ -243,6 +273,7 @@ const JobDetailPage = () => {
     if (id) {
       fetchJobDetails();
       fetchStatusOptions();
+      fetchCategoryOptions();
       fetchUsers();
     }
   }, [id, token, router]);
@@ -250,7 +281,10 @@ const JobDetailPage = () => {
   const handleEditToggle = () => {
     setIsEditing(!isEditing);
     if (!isEditing && job) {
-      setEditedJob(job);
+      setEditedJob({
+        ...job,
+        assignees: job.assignees || [],
+      });
     }
   };
 
@@ -263,9 +297,23 @@ const JobDetailPage = () => {
     setEditedJob((prev) => ({ ...prev, [name as string]: value }));
   };
 
+  const handleCategoryChange = (
+    e: React.ChangeEvent<{ name?: string; value: unknown }>
+  ) => {
+    const selectedCategoryId = Number(e.target.value);
+    const selectedCategory = categoryOptions.find(
+      (category) => category.id === selectedCategoryId
+    );
+    setEditedJob((prev) => ({
+      ...prev,
+      category: selectedCategory?.categoryName || "",
+      categoryId: selectedCategoryId,
+    }));
+  };
+
   const handleAutocompleteChange =
     (name: string) =>
-    (event: React.SyntheticEvent, value: User[] | User | null) => {
+    (_event: React.SyntheticEvent, value: User[] | User | null) => {
       if (name === "assignees") {
         setEditedJob((prev) => ({ ...prev, assignees: value as User[] }));
       } else if (name === "cd") {
@@ -293,6 +341,7 @@ const JobDetailPage = () => {
     };
 
   const handleSave = async () => {
+    debugger
     if (!token || !job?.id) return;
 
     if (isTokenExpired()) {
@@ -309,8 +358,9 @@ const JobDetailPage = () => {
 
     try {
       const formData = new FormData();
-      const assigneeIds =
-        editedJob.assignees?.map((assignee) => assignee.id) || [];
+      const assignees = editedJob.assignees || [];
+      const assigneeIds = assignees.map((assignee) => assignee.id);
+
       const jobRequestPayload = {
         title: editedJob.title,
         description: editedJob.description,
@@ -318,12 +368,13 @@ const JobDetailPage = () => {
         status: editedJob.statusId,
         assigneeIds: assigneeIds,
         customer: editedJob.customer,
-        category: editedJob.category,
+        category: editedJob.categoryId,
         priority: editedJob.priority,
         cdId: users.find((user) => user.name === editedJob.cd)?.id || null,
         completedAt: editedJob.completedAt,
         region: editedJob.region,
       };
+
       const jobRequestJsonString = JSON.stringify(jobRequestPayload);
       const jobRequestBlob = new Blob([jobRequestJsonString], {
         type: "application/json",
@@ -951,14 +1002,21 @@ const JobDetailPage = () => {
                       Category
                     </Typography>
                     {isEditing ? (
-                      <TextField
-                        name="category"
-                        value={editedJob.category || ""}
-                        onChange={handleChange}
-                        fullWidth
-                        variant="outlined"
-                        size="small"
-                      />
+                      <FormControl fullWidth variant="outlined" size="small">
+                        <InputLabel>Category</InputLabel>
+                        <Select
+                          name="category"
+                          value={editedJob.categoryId || ""}
+                          onChange={handleCategoryChange}
+                          label="Category"
+                        >
+                          {categoryOptions.map((category) => (
+                            <MenuItem key={category.id} value={category.id}>
+                              {category.categoryName}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
                     ) : (
                       <Typography variant="body1">
                         {job.category || "N/A"}

@@ -91,7 +91,7 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
 
 const HeaderTableCell = styled(TableCell)(({ theme }) => ({
   fontWeight: "bold",
-  backgroundColor: theme.palette.primary.main,
+  backgroundColor: "black",
   color: theme.palette.common.white,
 }));
 
