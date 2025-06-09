@@ -2,23 +2,14 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { Button } from "@/components/ui/button";
+import { Button, TextField, Typography, Container, Box, Alert, Link as MuiLink } from '@mui/material';
 import Cookies from "js-cookie";
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { LoginBody, LoginBodyType } from "@/schemaValidations/auth.schema";
-import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAppContext } from "@/app/app-provider";
 import { jwtDecode, JwtPayload } from "jwt-decode";
+import Link from 'next/link';
 
 interface LoginResponse {
     accessToken: string;
@@ -29,9 +20,11 @@ interface LoginResponse {
 
 const LoginForm = () => {
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
     const { setUser, setRoles } = useAppContext();
-    const { toast } = useToast();
     const router = useRouter();
+
     const form = useForm<LoginBodyType>({
         resolver: zodResolver(LoginBody),
         defaultValues: {
@@ -51,21 +44,22 @@ const LoginForm = () => {
     async function onSubmit(values: LoginBodyType) {
         if (loading) return;
         setLoading(true);
+        setError(null);
+        setSuccess(null);
+
         try {
             const response = await fetch(API_LOGIN_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(values),
             });
+
             if (!response.ok) {
                 const errorData = await response.json();
-                toast({
-                    variant: "destructive",
-                    title: "Login failed",
-                    description: errorData.message || "Something went wrong",
-                });
+                setError(errorData.message || "Something went wrong during login.");
                 throw new Error(errorData.message || "Login failed");
             }
+
             const data: LoginResponse = await response.json();
             const { accessToken, roles } = data;
 
@@ -83,7 +77,8 @@ const LoginForm = () => {
                 setRoles(roles);
                 Cookies.set("userRoles", JSON.stringify(roles), { expires: 1 });
             }
-            toast({ description: "Đăng nhập thành công" });
+            setSuccess("Login successful!");
+
             try {
                 const overdueResponse = await fetch(API_OVERDUE_JOBS_URL, {
                     headers: {
@@ -109,55 +104,94 @@ const LoginForm = () => {
                 console.error("Error checking overdue jobs:", error);
                 router.push("/");
             }
-        } catch (error: any) {
-            toast({
-                variant: "destructive",
-                title: "Login failed",
-                description: error.message || "Something went wrong",
-            });
+        } catch (err: any) {
+            setError(err.message || 'An unexpected error occurred. Please try again later.');
         } finally {
             setLoading(false);
         }
     }
 
     return (
-        <div>
-            <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                        control={form.control}
+        <Container maxWidth="sm">
+            <Box
+                sx={{
+                    mt: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    p: 4,
+                    border: '1px solid #e0e0e0',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                }}
+            >
+                <Typography component="h1" variant="h4" sx={{ mb: 3 }}>
+                    Login
+                </Typography>
+
+                {error && (
+                    <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
+                        {error}
+                    </Alert>
+                )}
+                {success && (
+                    <Alert severity="success" sx={{ width: '100%', mb: 2 }}>
+                        {success}
+                    </Alert>
+                )}
+
+                <Box component="form" onSubmit={form.handleSubmit(onSubmit)} sx={{ mt: 1, width: '100%' }}>
+                    <TextField
+                        margin="normal"
+                        required
+                        fullWidth
+                        id="usernameOrEmail"
+                        label="Email or Username"
                         name="usernameOrEmail"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Email or Username</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="Input email or username" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
+                        autoComplete="username"
+                        {...form.register("usernameOrEmail")}
+                        error={!!form.formState.errors.usernameOrEmail}
+                        helperText={form.formState.errors.usernameOrEmail?.message}
+                        autoFocus
                     />
 
-                    <FormField
-                        control={form.control}
+                    <TextField
+                        margin="normal"
+                        required
+                        fullWidth
                         name="password"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Password</FormLabel>
-                                <FormControl>
-                                    <Input type="password" placeholder="Input password" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
+                        label="Password"
+                        type="password"
+                        id="password"
+                        autoComplete="current-password"
+                        {...form.register("password")}
+                        error={!!form.formState.errors.password}
+                        helperText={form.formState.errors.password?.message}
                     />
 
-                    <Button type="submit" disabled={loading} className="w-full">
-                        {loading ? "Loging..." : "Login"}
+                    <Button
+                        type="submit"
+                        fullWidth
+                        variant="contained"
+                        sx={{ mt: 3, mb: 2, bgcolor: 'black', '&:hover': { bgcolor: '#333333' } }}
+                        disabled={loading}
+                    >
+                        {loading ? "Logging In..." : "Login"}
                     </Button>
-                </form>
-            </Form>
-        </div>
+
+                    <Box sx={{ textAlign: 'center', mt: 2 }}>
+                        <Typography variant="body2">
+                            Don't have an account?{' '}
+                            <Link href="/register" passHref legacyBehavior>
+                                <MuiLink component="span" variant="body2" sx={{ cursor: 'pointer' }}>
+                                    Sign Up here
+                                </MuiLink>
+                            </Link>
+                        </Typography>
+                    </Box>
+                </Box>
+            </Box>
+        </Container>
     );
 };
 

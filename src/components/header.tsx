@@ -37,12 +37,11 @@ export default function Header() {
     Array<{ key: string; icon?: React.ReactNode; label: React.ReactNode; href?: string; component?: any }>
   >([]);
 
-  // useEffect này sẽ phản ứng lại với sự thay đổi của isAuthenticated và currentUserRoles từ context
   useEffect(() => {
     const newMainMenuItems: Array<{ key: string; icon?: React.ReactNode; label: React.ReactNode; href?: string; component?: any }> = [];
 
     if (isAuthenticated) {
-      if (currentUserRoles && currentUserRoles.includes("ROLE_ADMIN")) { // Kiểm tra currentUserRoles không null
+      if (currentUserRoles && currentUserRoles.includes("ROLE_ADMIN")) {
         newMainMenuItems.push({
           key: "members",
           icon: <Dashboard />,
@@ -78,7 +77,7 @@ export default function Header() {
       );
     }
     setMainMenuItems(newMainMenuItems);
-  }, [currentUserRoles, isAuthenticated]); // Dependencies giờ là từ context
+  }, [currentUserRoles, isAuthenticated]);
 
   const handleOpenMainMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElMain(event.currentTarget);
