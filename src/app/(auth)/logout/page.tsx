@@ -13,8 +13,9 @@ export default function ButtonLogout() {
     const pathname = usePathname();
     const { toast } = useToast();
 
-    const handleLogout = async (token: string) => {
+    const handleLogout = async () => {
         try {
+            const token = Cookies.get('accessToken');
             const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
                 method: 'DELETE',
                 headers: {
@@ -25,7 +26,6 @@ export default function ButtonLogout() {
             if (!response.ok) {
                 throw new Error('Logout failed');
             }
-            Cookies.remove("accessToken");
             Cookies.remove("accessToken");
             Cookies.remove("accessTokenExpiresAt");
             Cookies.remove("userRoles");

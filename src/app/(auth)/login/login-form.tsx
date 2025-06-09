@@ -61,8 +61,8 @@ const LoginForm = () => {
                 const errorData = await response.json();
                 toast({
                     variant: "destructive",
-                    title: "Đăng nhập thất bại",
-                    description: errorData.message || "Đã có lỗi xảy ra khi đăng nhập.",
+                    title: "Login failed",
+                    description: errorData.message || "Something went wrong",
                 });
                 throw new Error(errorData.message || "Login failed");
             }
@@ -112,8 +112,8 @@ const LoginForm = () => {
         } catch (error: any) {
             toast({
                 variant: "destructive",
-                title: "Đăng nhập thất bại",
-                description: error.message || "Đã có lỗi xảy ra khi đăng nhập.",
+                title: "Login failed",
+                description: error.message || "Something went wrong",
             });
         } finally {
             setLoading(false);
@@ -129,9 +129,9 @@ const LoginForm = () => {
                         name="usernameOrEmail"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Email hoặc Username</FormLabel>
+                                <FormLabel>Email or Username</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="Nhập email hoặc username" {...field} />
+                                    <Input placeholder="Input email or username" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -143,9 +143,9 @@ const LoginForm = () => {
                         name="password"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Mật khẩu</FormLabel>
+                                <FormLabel>Password</FormLabel>
                                 <FormControl>
-                                    <Input type="password" placeholder="Nhập mật khẩu" {...field} />
+                                    <Input type="password" placeholder="Input password" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -153,7 +153,7 @@ const LoginForm = () => {
                     />
 
                     <Button type="submit" disabled={loading} className="w-full">
-                        {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+                        {loading ? "Loging..." : "Login"}
                     </Button>
                 </form>
             </Form>
